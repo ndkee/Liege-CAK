@@ -26,7 +26,14 @@ void BodyForcePotentialGet (double **v, double **gphi,
 
 
 double BodyForcePotential(double, double, double);
+
+#if CAK == YES
+void   BodyForceVector(double, double *, double, double *, double, 
+                       double, double, double, double);
+#endif
+#if CAK == NO
 void   BodyForceVector(double *, double *, double, double, double);
+#endif
 
 void  ChangeDumpVar ();
 void  CharTracingStep(const State_1D *, int, int, Grid *);
