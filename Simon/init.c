@@ -350,10 +350,23 @@ void BodyForceVector(double vm1, double *v, double vp1, double *g,
   Edd = 2.6e-5*(Lratio)*(1.0/Mratio);
 
   gg = -UNIT_G*M_star*(1.0 - Edd)/x1/x1;
+
+
+/*
+  Idr = x1 - 0.9*(x1 - xm1);
+  Iv1 = vm1 + (Idr - xm1) * (v[VX1] - vm1)/(x1 - xm1);
+
+  Idr = x1 + 0.9*(xp1 - x1);
+  Iv2 = v[VX1] + (Idr - x1) * (vp1 - v[VX1])/(xp1 - x1);
+
+  dvdx1 = fabs((-0.5*Iv1 + 0.5*Iv2)/(Idr - x1));
+*/
+
   dxi = xp1 - x1;
   dxim1 = x1 - xm1;
   dvdx1 = -dxi*vm1/(dxim1*(dxi + dxim1)) + (dxi - dxim1)*
             v[VX1]/(dxi*dxim1) + dxim1*vp1/(dxi*(dxi + dxim1));
+
 
   nu2_c = 1.0 - 1.0/(x1*x1);
   ke = 4.0*CONST_PI*UNIT_G*M_star*c*Edd/L;
@@ -366,11 +379,19 @@ void BodyForceVector(double vm1, double *v, double vp1, double *g,
   A = ((1.0/(1.0-a))*((ke*L*Q)/(4.0*CONST_PI*c)));
   gLx1 = f*A*pow(x1, -2)*pow(dvdx1/B, a);
 
+  if (dvdx1 < 1.0e-4){
+    gLx1 = 0.0;
+  }
+
 #if EOS == IDEAL
   temp = v[PRS]*KELVIN*mu/v[RHO];
-  gLx1 = gLx1*exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
+  gLx1 *= exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
 #endif
 
+  if (isnan(gLx1)){
+    gLx1 = 0.0;
+  }
+ 
   g[IDIR] = gg + gLx1;
   g[JDIR] = 0.0;
   g[KDIR] = 0.0;
