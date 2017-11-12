@@ -379,19 +379,17 @@ void BodyForceVector(double vm1, double *v, double vp1, double *g,
   A = ((1.0/(1.0-a))*((ke*L*Q)/(4.0*CONST_PI*c)));
   gLx1 = f*A*pow(x1, -2)*pow(dvdx1/B, a);
 
-  if (dvdx1 < 1.0e-4){
-    gLx1 = 0.0;
-  }
-
 #if EOS == IDEAL
   temp = v[PRS]*KELVIN*mu/v[RHO];
   gLx1 *= exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
 #endif
 
-  if (isnan(gLx1)){
+
+  if (dvdx1 < 1.0e-4){
+    //printf("x1=%e, dvdx1=%e, f=%e, sigma=%e, nu2_c=%e, gLx1=%e \n", x1, dvdx1, f, sigma, nu2_c, gLx1);
     gLx1 = 0.0;
   }
- 
+
   g[IDIR] = gg + gLx1;
   g[JDIR] = 0.0;
   g[KDIR] = 0.0;
