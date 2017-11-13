@@ -259,7 +259,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
         prs[k][j][i] = ((rho[k][j][i])*T/(KELVIN*mu));          
 #endif
 
-/*
+
         if (vx1[k][j][ghost] > cs){
           EXPAND(vradial = cs;,
                  vtheta = 0.0;,
@@ -281,12 +281,12 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
         EXPAND(vx1[k][j][i] = vradial;,
                vx2[k][j][i] = vtheta;,
                vx3[k][j][i] = vphi;)
-*/
 
+/*
         EXPAND(vx1[k][j][i] = cs/Cs_p;,
                vx2[k][j][i] = 0.0;,
                vx3[k][j][i] = 0.0;)
-
+*/
         rho[k][j][i] = (M_dot/(4.0*CONST_PI*(cs/Cs_p)));          
 
 #if EOS == IDEAL
@@ -348,8 +348,8 @@ void BodyForceVector(double vm1, double *v, double vp1, double *g,
   M_star = Mratio*CONST_Msun/UNIT_MASS;
   L = Lratio*L_sun/UNIT_L;
   Edd = 2.6e-5*(Lratio)*(1.0/Mratio);
-
   gg = -UNIT_G*M_star*(1.0 - Edd)/x1/x1;
+
   dxi = xp1 - x1;
   dxim1 = x1 - xm1;
   dvdx1 = -dxi*vm1/(dxim1*(dxi + dxim1)) + (dxi - dxim1)*
@@ -367,9 +367,19 @@ void BodyForceVector(double vm1, double *v, double vp1, double *g,
   gLx1 = f*A*pow(x1, -2)*pow(dvdx1/B, a);
 
 #if EOS == IDEAL
+  // Accounting for total ionisation at high temp 
+  // and for recombination at low temp.
   temp = v[PRS]*KELVIN*mu/v[RHO];
-  gLx1 = gLx1*exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
+  gLx1 *= exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
 #endif
+
+  // This if statement acounts for when the gradient 
+  // is zero, leading to the acceleration going to -nan 
+  // due to sigma.
+  if (dvdx1 < 1.0e-8){
+    //printf("x1=%e, dvdx1=%e, f=%e, sigma=%e, nu2_c=%e, gLx1=%e \n", x1, dvdx1, f, sigma, nu2_c, gLx1);
+    gLx1 = 0.0;
+  }
 
   g[IDIR] = gg + gLx1;
   g[JDIR] = 0.0;
