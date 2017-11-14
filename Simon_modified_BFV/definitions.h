@@ -1,6 +1,6 @@
 #define  PHYSICS                 HD
-#define  DIMENSIONS              3
-#define  COMPONENTS              3
+#define  DIMENSIONS              2
+#define  COMPONENTS              2
 #define  GEOMETRY                SPHERICAL
 #define  BODY_FORCE              VECTOR
 #define  COOLING                 NO
@@ -16,7 +16,7 @@
 #define  ENTROPY_SWITCH          NO
 #define  THERMAL_CONDUCTION      NO
 #define  VISCOSITY               NO
-#define  ROTATING_FRAME          YES
+#define  ROTATING_FRAME          NO
 
 /* -- user-defined parameters (labels) -- */
 
@@ -60,8 +60,8 @@
 
 #define  INITIAL_SMOOTHING   NO
 #define  WARNING_MESSAGES    NO
-#define  PRINT_TO_FILE       YES
-#define  INTERNAL_BOUNDARY   NO
+#define  PRINT_TO_FILE       NO
+#define  INTERNAL_BOUNDARY   YES
 #define  SHOCK_FLATTENING    NO
 #define  CHAR_LIMITING       NO
 #define  LIMITER             VANLEER_LIM

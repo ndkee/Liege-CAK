@@ -7,7 +7,7 @@
 pluto:                              # Default target
 
 ARCH         = Darwin.gcc.defs
-PLUTO_DIR    = /Users/simon/Work/Programs/PLUTO
+PLUTO_DIR    = /Users/simon/Work/Code/Liege-CAK/Pluto
 SRC          = $(PLUTO_DIR)/Src
 INCLUDE_DIRS = -I. -I$(SRC)
 VPATH        = ./:$(SRC)/New:$(SRC):$(SRC)/Time_Stepping:$(SRC)/States
@@ -64,12 +64,14 @@ endif
 #   Additional_header_files_here   ! dont change this line
 # ---------------------------------------------------------
 
+HEADERS += ppm_coeffs.h
 
 # ---------------------------------------------------------
 #   Additional_object_files_here   ! dont change this line
 # ---------------------------------------------------------
 
-OBJ += plm_states.o
+OBJ += ppm_states.o
+OBJ += ppm_coeffs.o
 OBJ += rk_step.o
 OBJ += update_stage.o
 include $(SRC)/HD/makefile

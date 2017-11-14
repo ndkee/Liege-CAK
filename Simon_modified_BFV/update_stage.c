@@ -35,15 +35,9 @@ static void SaveAMRFluxes (const State_1D *, double **, int, int, Grid *);
 static intList TimeStepIndexList();
 
 /* ********************************************************************* */
-#if CAK == YES
-void UpdateStage(const Data *d, Data_Arr UU, Data_Arr gL, double **aflux,
-                 Riemann_Solver *Riemann, double dt, Time_Step *Dts, 
-                 Grid *grid)
-#else
 void UpdateStage(const Data *d, Data_Arr UU, double **aflux,
                  Riemann_Solver *Riemann, double dt, Time_Step *Dts, 
                  Grid *grid)
-#endif
 /*!
  * 
  * \param [in,out]  d        pointer to PLUTO Data structure
@@ -146,6 +140,13 @@ void UpdateStage(const Data *d, Data_Arr UU, double **aflux,
       for ((*ip) = 0; (*ip) < indx.ntot; (*ip)++) {
         VAR_LOOP(nv) state.v[(*ip)][nv] = d->Vc[nv][k][j][i];
         state.flag[*ip] = d->flag[k][j][i];
+
+        #if CAK == YES
+          for(int gnvar=0; gnvar<COMPONENTS; gnvar++){
+            state.gl[(*ip)][gnvar] = d->gL[gnvar][k][j][i];
+          }
+        #endif
+
         #ifdef STAGGERED_MHD
          state.bn[(*ip)] = d->Vs[g_dir][k][j][i];
         #endif
@@ -165,12 +166,7 @@ void UpdateStage(const Data *d, Data_Arr UU, double **aflux,
       #ifdef SHEARINGBOX
        SB_SaveFluxes (&state, grid);
       #endif
-
-      #if CAK == YES
-      RightHandSide (&state, gL, Dts, indx.beg, indx.end, dt, grid);
-      #else
       RightHandSide (&state, Dts, indx.beg, indx.end, dt, grid);
-      #endif
 
     /* -- update:  U = U + dt*R -- */
 

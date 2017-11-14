@@ -178,9 +178,12 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
 
   int i, j, k, ip, kp, jp, ghost;
 
+  double h, temp;
+  double Idr, Iv1, Iv2,dxi,dxim1;
+
   double Cs_p, Mratio, Lratio, T, mu, a, b, Q, a_eff, M_star, Edd, Rratio;
   double L, c, M_dot, ke, Omega2, A, Bcgs, cs, eta, Bq;
-  double nu2_c, B, sigma, f, gLx1, gLx2, gcx1, gcx2, gg, beta, Rcgs, vv;
+  double nu2_c, B, sigma, f, gg, beta, Rcgs, vv;
   double x, y, z, xp, yp, zp, r, theta, v_inf, v_esc, v_inf_cgs, M_dot_cgs;
   double vradial, vtheta, vphi;
   double dvdx1, dvdx2, dvdx3;
@@ -194,6 +197,9 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
   double ***vx1 = d->Vc[VX1];
   double ***vx2 = d->Vc[VX2];                                                  
   double ***vx3 = d->Vc[VX3];
+  double ***gLx1 = d->gL[0];
+  double ***gLx2 = d->gL[1];
+  double ***gLx3 = d->gL[2];
   double ***rho = d->Vc[RHO];
 #if EOS == IDEAL
   double ***prs = d->Vc[PRS];
@@ -259,7 +265,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
         prs[k][j][i] = ((rho[k][j][i])*T/(KELVIN*mu));          
 #endif
 
-/*
+
         if (vx1[k][j][ghost] > cs){
           EXPAND(vradial = cs;,
                  vtheta = 0.0;,
@@ -281,11 +287,6 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
         EXPAND(vx1[k][j][i] = vradial;,
                vx2[k][j][i] = vtheta;,
                vx3[k][j][i] = vphi;)
-*/
-
-        EXPAND(vx1[k][j][i] = cs/Cs_p;,
-               vx2[k][j][i] = 0.0;,
-               vx3[k][j][i] = 0.0;)
 
         rho[k][j][i] = (M_dot/(4.0*CONST_PI*(cs/Cs_p)));          
 
@@ -317,21 +318,59 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
     }
   }
                                                                    
-#if EOS == IDEAL
   if(side == 0){
     DOM_LOOP(k,j,i){
+
+#if CAK == YES
+      dxi = x1[i+1] - x1[i];
+      dxim1 = x1[i] - x1[i-1];
+      dvdx1 = fabs(-dxi*vx1[k][j][i-1]/(dxim1*(dxi + dxim1)) + (dxi - dxim1)*
+                vx1[k][j][i]/(dxi*dxim1) + dxim1*vx1[k][j][i+1]/(dxi*(dxi + dxim1)));
+
+      nu2_c = 1.0 - 1.0/(x1[i]*x1[i]);
+      ke = 4.0*CONST_PI*UNIT_G*M_star*c*Edd/L;
+      B = rho[k][j][i]*Q*c*ke;
+      sigma = (x1[i]/fabs(vx1[k][j][i]))*(dvdx1) - 1.0; 
+
+      f = ((pow(1.0 + sigma, 1.0 + a) - pow(1.0 + sigma*nu2_c, 1.0 + a))/
+            ((1.0 + a)*(1.0 - nu2_c)*sigma*pow(1.0 + sigma, a)));  
+
+      A = ((1.0/(1.0-a))*((ke*L*Q)/(4.0*CONST_PI*c)));
+
+      EXPAND(gLx1[k][j][i] = f*A*pow(x1[i], -2)*pow(dvdx1/B, a);,
+             gLx2[k][j][i] = 0.0;,
+             gLx3[k][j][i] = 0.0;)
+
+#if EOS == IDEAL
+      // Accounting for total ionisation at high temp 
+      // and for recombination at low temp.
+      temp = prs[k][j][i]*KELVIN*mu/rho[k][j][i];
+      gLx1[k][j][i] *= exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
+#endif
+
+      // This if statement acounts for when the gradient 
+      // is zero, leading to the acceleration going to -nan 
+      // due to sigma.
+      if (fabs(dvdx1) < 1.0e-8){
+        //printf("x1=%e, dvdx1=%e, f=%e, sigma=%e, nu2_c=%e, gLx1=%e \n", x1, dvdx1, f, sigma, nu2_c, gLx1);
+        gLx1[k][j][i] = 0.0;
+      }
+#endif
+      
+
+#if EOS == IDEAL
       if (d->Vc[PRS][k][j][i] < (rho[k][j][i])*T/(KELVIN*mu)){
         d->Vc[PRS][k][j][i] = (rho[k][j][i])*T/(KELVIN*mu);
       }
+#endif
+
     }
   }
-#endif
 }                                                                          
 /*================================================================================*/
 #if BODY_FORCE != NO
 #if CAK == YES
-void BodyForceVector(double vm1, double *v, double vp1, double *g, 
-                     double xm1, double x1, double xp1, double x2, double x3)
+void BodyForceVector(double *v, double *gla, double *g, double x1, double x2, double x3)
 {
   double L, A, ke, a, M_star, gg, Edd, Mratio, Lratio, Q, T;
   double h, c, dvdx1, nu2_c, B, sigma, f, gLx1, mu, temp;
@@ -348,30 +387,11 @@ void BodyForceVector(double vm1, double *v, double vp1, double *g,
   M_star = Mratio*CONST_Msun/UNIT_MASS;
   L = Lratio*L_sun/UNIT_L;
   Edd = 2.6e-5*(Lratio)*(1.0/Mratio);
-
   gg = -UNIT_G*M_star*(1.0 - Edd)/x1/x1;
-  dxi = xp1 - x1;
-  dxim1 = x1 - xm1;
-  dvdx1 = -dxi*vm1/(dxim1*(dxi + dxim1)) + (dxi - dxim1)*
-            v[VX1]/(dxi*dxim1) + dxim1*vp1/(dxi*(dxi + dxim1));
 
-  nu2_c = 1.0 - 1.0/(x1*x1);
-  ke = 4.0*CONST_PI*UNIT_G*M_star*c*Edd/L;
-  B = v[RHO]*Q*c*ke;
-  sigma = (x1/fabs(v[VX1]))*(dvdx1) - 1.0; 
+  //printf("gla[0]=%e \n",gla[0]);
 
-  f = ((pow(1.0 + sigma, 1.0 + a) - pow(1.0 + sigma*nu2_c, 1.0 + a))/
-        ((1.0 + a)*(1.0 - nu2_c)*sigma*pow(1.0 + sigma, a)));  
-
-  A = ((1.0/(1.0-a))*((ke*L*Q)/(4.0*CONST_PI*c)));
-  gLx1 = f*A*pow(x1, -2)*pow(dvdx1/B, a);
-
-#if EOS == IDEAL
-  temp = v[PRS]*KELVIN*mu/v[RHO];
-  gLx1 = gLx1*exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
-#endif
-
-  g[IDIR] = gg + gLx1;
+  g[IDIR] = gg + gla[0];
   g[JDIR] = 0.0;
   g[KDIR] = 0.0;
   

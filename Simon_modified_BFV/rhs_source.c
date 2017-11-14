@@ -65,13 +65,8 @@
 #endif
 
 /* *********************************************************************** */
-#if CAK == YES
-void RightHandSideSource (const State_1D *state, Data_Arr gL,Time_Step *Dts,
+void RightHandSideSource (const State_1D *state, Time_Step *Dts,
                           int beg, int end, double dt, double *phi_p, Grid *grid)
-#else
-void RightHandSideSource (const State_1D *state, Data_Arr gL,Time_Step *Dts,
-                          int beg, int end, double dt, double *phi_p, Grid *grid)
-#endif 
 /*! 
  *
  * \param [in,out]  state  pointer to State_1D structure
@@ -106,6 +101,9 @@ void RightHandSideSource (const State_1D *state, Data_Arr gL,Time_Step *Dts,
   double **Bg0, **wA, w, wp, vphi, phi_c;
   double vphi_d, Sm_d;
   double vc[NVAR], *vg;
+#if CAK == YES
+  double *gla;
+#endif
 
 #ifdef FARGO
   wA = FARGO_GetVelocity();
@@ -226,7 +224,8 @@ void RightHandSideSource (const State_1D *state, Data_Arr gL,Time_Step *Dts,
 
 #if (BODY_FORCE & VECTOR)
 #if CAK == YES
-      BodyForceVector(vg, g, gL, x1[i], x2[j], x3[k]);
+      gla = state->gl[i];
+      BodyForceVector(vg, gla, g, x1[i], x2[j], x3[k]);
 #else
       BodyForceVector(vg, g, x1[i], x2[j], x3[k]);
 #endif
@@ -318,7 +317,8 @@ void RightHandSideSource (const State_1D *state, Data_Arr gL,Time_Step *Dts,
 
 #if (BODY_FORCE & VECTOR)
 #if CAK == YES
-      BodyForceVector(vg, g, gL, x1[i], x2[j], x3[k]);
+      gla = state->gl[j];
+      BodyForceVector(vg, gla, g, x1[i], x2[j], x3[k]);
 #else
       BodyForceVector(vg, g, x1[i], x2[j], x3[k]);
 #endif
@@ -368,7 +368,8 @@ void RightHandSideSource (const State_1D *state, Data_Arr gL,Time_Step *Dts,
 
 #if (BODY_FORCE & VECTOR)
 #if CAK == YES
-      BodyForceVector(vg, g, gL, x1[i], x2[j], x3[k]);
+      gla = state->gl[k];
+      BodyForceVector(vg, gla, g, x1[i], x2[j], x3[k]);
 #else
       BodyForceVector(vg, g, x1[i], x2[j], x3[k]);
 #endif
