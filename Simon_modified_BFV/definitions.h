@@ -1,6 +1,6 @@
 #define  PHYSICS                 HD
 #define  DIMENSIONS              2
-#define  COMPONENTS              2
+#define  COMPONENTS              3
 #define  GEOMETRY                SPHERICAL
 #define  BODY_FORCE              VECTOR
 #define  COOLING                 NO
@@ -16,7 +16,7 @@
 #define  ENTROPY_SWITCH          NO
 #define  THERMAL_CONDUCTION      NO
 #define  VISCOSITY               NO
-#define  ROTATING_FRAME          NO
+#define  ROTATING_FRAME          YES
 
 /* -- user-defined parameters (labels) -- */
 

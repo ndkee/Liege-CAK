@@ -28,7 +28,9 @@ typedef struct CMD_LINE {
     the code. 
    ********************************************************************* */
 typedef struct DATA{
+#if CAK == YES
   double ****gL;
+#endif
   double ****Vc;  /**< The main four-index data array used for cell-centered
                        primitive variables. The index order is
                        <tt>Vc[nv][k][j][i]</tt> where \c nv gives the variable
@@ -132,7 +134,9 @@ typedef struct GRID{
     flux functions, etc.
    ********************************************************************* */
 typedef struct STATE_1D{
+#if CAK == YES
   double **gl;
+#endif
   double **v;    /**< Cell-centered primitive varables at the base time level,
                       v[i] = \f$ \vec{V}^n_i \f$ . */
   double **vL;   /**< Primitive variables to the left of the interface, 

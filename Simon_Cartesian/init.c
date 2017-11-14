@@ -27,12 +27,12 @@ double VelocityStellarSurface3D(const Data *d, RBox *box, Grid *grid,
 void Init (double *v, double x1, double x2, double x3){
 
   double Mratio, Lratio, Bcgs; 
-  double T, mu, a, b, Q, a_eff, 
+  double T, mu, a, b, Q, a_eff;
   double beta, M_star, Edd, L, c; 
   double M_dot, M_dot_cgs, cs, Cs_p; 
-  double Bq, v_esc, v_inf, vv, Omega, 
+  double Bq, v_esc, v_inf, vv, Omega; 
   double x, y, z;
-  double xp, , yp, zp;
+  double xp, yp, zp;
   double bx, by, bz;
   double bxp, byp, bzp;
   double r, r2, rp, rp2, rb, rb2, theta;
@@ -567,17 +567,15 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
         gL = 0.0;
       } else if (i > IEND-3 || j > JEND-3){
         gL = 0.0;
-        //printf("gl = %f, f = %f, A = %f, r = %f, dvdr = %f, B = %f, a = %f \n", gL, f, A, r, dvdr, B, a);
       }
       #endif
       #endif
 
-      //printf("gl = %e, f = %e, A = %e, r = %e, dvdr = %e, B = %e, a = %e \n", gL, f, A, r, dvdr, B, a);
       EXPAND(gLx1[k][j][i] = gL*x1[i]/r;,
              gLx2[k][j][i] = gL*x2[j]/r;,
              gLx3[k][j][i] = gL*x3[k]/r;)
 
-    } // end of if r > shell.
+    } // end of if r > R_star.
 
 
     #if EOS == IDEAL
@@ -633,6 +631,11 @@ void BodyForceVector(double *v, double *g, double x1, double x2, double x3)
   Fin_x1 = omega_fr*omega_fr*x1 + 2.0*omega_fr*v[VX2];
   Fin_x2 = omega_fr*omega_fr*x2 - 2.0*omega_fr*v[VX1];
   #endif
+
+  if (sqrt(gla[0]*gla[0] + gla[1]*gla[1] + gla[2]*gla[2]) < gg){
+    printf("gla[0]=%e, gla[1]=%e, gla[2]=%e, gg*x1/r=%e, gg*x2/r=%e, gg*x3/r=%e \n",
+            gla[0], gla[1], gla[2], gg*x1/r, gg*x2/r, gg*x3/r );
+  }
 
   if (r >= 1.0){ // - External gravity + centrifugal + coriolis 
     g[IDIR] = gla[0] + gg*x1/r + Fin_x1;
