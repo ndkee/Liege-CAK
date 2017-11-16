@@ -1,0 +1,12 @@
+USER           = simon
+WORKING_DIR    = /Users/simon/Work/Code/Liege-CAK/CAK_spherical
+SYSTEM_NAME    = Darwin
+NODE_NAME      = Simons-MacBook-Pro.local
+RELEASE        = 17.2.0
+ARCH           = x86_64
+BYTE_ORDER     = little
+VERSION        = Darwin Kernel Version 17.2.0: Fri Sep 29 18:27:05 PDT 2017; root:xnu-4570.20.62~3/RELEASE_X86_64
+PLUTO_DIR      = /Users/simon/Work/Code/Liege-CAK/Pluto
+PLUTO_VERSION  = "4.2"
+C_COMPILER     = gcc
+MPI_C_COMPILER = mpicc

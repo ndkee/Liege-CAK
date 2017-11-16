@@ -28,7 +28,8 @@ void BodyForcePotentialGet (double **v, double **gphi,
 double BodyForcePotential(double, double, double);
 
 #if CAK == YES
-void   BodyForceVector(double *, double *, double *, double, double, double);
+void   BodyForceVector(double, double *, double, double *, double, 
+                       double, double, double, double);
 #endif
 #if CAK == NO
 void   BodyForceVector(double *, double *, double, double, double);
