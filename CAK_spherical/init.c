@@ -21,6 +21,8 @@ void Init (double *v, double x1, double x2, double x3){
   double Mratio, Lratio, Bcgs, T, mu, a, b, Q, a_eff, M_star, Edd, eta, Rratio;
   double L, c, M_dot, cs, Bq, v_esc, v_inf, vv, beta, M_dot_cgs, v_inf_cgs;
   double x, y, z, xp, yp, zp, r, theta, Rcgs, omega;
+  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
+  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
 
   eta = g_inputParam[Eta];
   Rratio = g_inputParam[R_RATIO];
@@ -94,18 +96,44 @@ g_minCoolingTemp = g_inputParam[TT]; //Dylan,Asif: this sets minimum T of the si
 
 #if PHYSICS == MHD                                   
 #if BACKGROUND_FIELD == NO
+
   beta *= 0.0174532925;
+
+  // Convert to Cartesian.
   x = x1*sin(x2)*cos(x3);
   y = x1*sin(x2)*sin(x3);
   z = x1*cos(x2);
+  // Rotate Cartesian coordiantes.
   xp = x*cos(beta) - z*sin(beta);
   yp = y;
   zp = x*sin(beta) + z*cos(beta);
-  r = sqrt(xp*xp + yp*yp + zp*zp);
-  theta = acos(zp/r);
-  EXPAND(v[BX1] = Bq*pow(r, -3)*cos(theta);,            
-         v[BX2] = (Bq/2.0)*pow(r, -3)*sin(theta);,                 
-         v[BX3] = 0.0;)                                                   
+  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
+  rp = sqrt(rp2);
+
+  // Calculate b-field components in rotated frame.
+  bx = 3.0*xp*zp*Bq*pow(rp,-5);
+  by = 3.0*yp*zp*Bq*pow(rp,-5);
+  bz = (3.0*pow(zp,2)-pow(rp,2))*Bq*pow(rp,-5);
+
+  // Rotate B-field vector componets.  
+  bxp = bx*cos(beta) + bz*sin(beta);
+  byp = by;
+  bzp = -bx*sin(beta) + bz*cos(beta);
+
+  // Define spherical basis vectors.
+  a11 = sin(x2)*cos(x3); a12 = sin(x2)*sin(x3); a13 = cos(x2);
+  a21 = cos(x2)*cos(x3); a22 = cos(x2)*sin(x3); a23 = -sin(x2);
+  a31 = -sin(x3);        a32 = cos(x3);         a33 = 0.0;
+
+  // Change basis back to spherical polar.
+  br = bxp*a11 + byp*a12 + bzp*a13;
+  btheta = bxp*a21 + byp*a22 + bzp*a23;
+  bphi = bxp*a31 + byp*a32 + bzp*a33;
+
+  EXPAND(v[BX1] = br;,            
+         v[BX2] = btheta;,                 
+         v[BX3] = bphi;) 
+
 #endif
 #if BACKGROUND_FIELD == YES
   EXPAND(v[BX1] = 0.0;,
@@ -163,17 +191,41 @@ void BackgroundField (double x1, double x2, double x3, double *B0)
   Bq = Bcgs/UNIT_B;
 
   beta *= 0.0174532925;
+
+  // Convert to Cartesian.
   x = x1*sin(x2)*cos(x3);
   y = x1*sin(x2)*sin(x3);
   z = x1*cos(x2);
+  // Rotate Cartesian coordiantes.
   xp = x*cos(beta) - z*sin(beta);
   yp = y;
   zp = x*sin(beta) + z*cos(beta);
-  r = sqrt(xp*xp + yp*yp + zp*zp);
-  theta = acos(zp/r);
-  EXPAND(B0[0] = Bq*pow(r,-3)*cos(theta);,
-         B0[1] = (Bq/2.0)*pow(r,-3)*sin(theta);,
-         B0[2] = 0.0;)
+  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
+  rp = sqrt(rp2);
+
+  // Calculate b-field components in rotated frame.
+  bx = 3.0*xp*zp*Bq*pow(rp,-5);
+  by = 3.0*yp*zp*Bq*pow(rp,-5);
+  bz = (3.0*pow(zp,2)-pow(rp,2))*Bq*pow(rp,-5);
+
+  // Rotate B-field vector componets.  
+  bxp = bx*cos(beta) + bz*sin(beta);
+  byp = by;
+  bzp = -bx*sin(beta) + bz*cos(beta);
+
+  // Define spherical basis vectors.
+  a11 = sin(x2)*cos(x3); a12 = sin(x2)*sin(x3); a13 = cos(x2);
+  a21 = cos(x2)*cos(x3); a22 = cos(x2)*sin(x3); a23 = -sin(x2);
+  a31 = -sin(x3);        a32 = cos(x3);         a33 = 0.0;
+
+  // Change basis back to spherical polar.
+  br = bxp*a11 + byp*a12 + bzp*a13;
+  btheta = bxp*a21 + byp*a22 + bzp*a23;
+  bphi = bxp*a31 + byp*a32 + bzp*a33;
+
+  EXPAND(B0[0] = br;,
+         B0[1] = btheta;,
+         B0[2] = bphi;)
 
 }
 #endif
@@ -194,6 +246,8 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
   double vradial, vtheta, vphi;
   double dvdx1, dvdx2, dvdx3;
   double beta_op, opa, oma;
+  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
+  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
 
   double *x1 = grid[IDIR].x;                                                  
   double *x2 = grid[JDIR].x;                                                  
@@ -326,17 +380,45 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
 
 #if PHYSICS == MHD   
 #if BACKGROUND_FIELD == NO
+
+        beta *= 0.0174532925;
+
+        // Convert to Cartesian.
         x = x1[i]*sin(x2[j])*cos(x3[k]);
         y = x1[i]*sin(x2[j])*sin(x3[k]);
         z = x1[i]*cos(x2[j]);
+  
+        // Rotate Cartesian coordiantes.
         xp = x*cos(beta) - z*sin(beta);
         yp = y;
         zp = x*sin(beta) + z*cos(beta);
-        r = sqrt(xp*xp + yp*yp + zp*zp);
-        theta = acos(zp/r);
-        EXPAND(bx1[k][j][i] = Bq*pow(r, -3)*cos(theta);,            
-               bx2[k][j][i] = (Bq/2.0)*pow(r, -3)*sin(theta);,                 
-               bx3[k][j][i] = 0.0;)                                                   
+        rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
+        rp = sqrt(rp2);
+
+        // Calculate b-field components in rotated frame.
+        bx = 3.0*xp*zp*Bq*pow(rp,-5);
+        by = 3.0*yp*zp*Bq*pow(rp,-5);
+        bz = (3.0*pow(zp,2)-pow(rp,2))*Bq*pow(rp,-5);
+
+        // Rotate B-field vector componets.  
+        bxp = bx*cos(beta) + bz*sin(beta);
+        byp = by;
+        bzp = -bx*sin(beta) + bz*cos(beta);
+
+        // Define spherical basis vectors.
+        a11 = sin(x2[j])*cos(x3[k]); a12 = sin(x2[j])*sin(x3[k]); a13 = cos(x2[j]);
+        a21 = cos(x2[j])*cos(x3[k]); a22 = cos(x2[j])*sin(x3[k]); a23 = -sin(x2[j]);
+        a31 = -sin(x3[k]);           a32 = cos(x3[k]);            a33 = 0.0;
+
+        // Change basis back to spherical polar.
+        br = bxp*a11 + byp*a12 + bzp*a13;
+        btheta = bxp*a21 + byp*a22 + bzp*a23;
+        bphi = bxp*a31 + byp*a32 + bzp*a33;
+
+        EXPAND(bx1[k][j][i] = br;,            
+               bx2[k][j][i] = btheta;,                 
+               bx3[k][j][i] = bphi;) 
+
 #endif
 #if BACKGROUND_FIELD == YES
         EXPAND(bx1[k][j][i] = 0.0;,
