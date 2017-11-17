@@ -164,6 +164,8 @@ void BackgroundField (double x1, double x2, double x3, double *B0)
   double x, y, z;
   double xp, yp, zp;
   double theta;
+  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
+  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
 
   beta = g_inputParam[BB];
   eta = g_inputParam[Eta];
