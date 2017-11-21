@@ -1,139 +1,193 @@
-/*================================================================================*/
+/* ********************************************************************* */
 /*
-   Initilisation file for a radiativly driven stellar wind with a non-rigid dipole  
-   configuration magnetic field.
+   Initilisation file for a radiativly driven stellar wind with a 
+   non-rigid dipole configuration magnetic field.
 
-   The boundary and initial conditions are taken from Runacres and Owocki (2002)    
+   The boundary and initial conditions are taken 
+   from Runacres and Owocki (2002)    
 
-   The method for calculating the radiative acceleration comes from CAK (1975)      
+   The method for calculating the radiative acceleration 
+   comes from CAK (1975)      
 
    The model only works with polar corrdinates in 2D, with the 
    MHD module. 1D, 3D, HD, RHD, RMHD and other geometries do not 
    work at the moment.
 
 */
-/*================================================================================*/
+/* ********************************************************************* */
 #include "pluto.h"                                                                  
 
-void Init (double *v, double x1, double x2, double x3){
-/*================================================================================*/
+/* ********************************************************************* */
+typedef struct STAR
+/*!
+ * Type defineition for the star. This structure contains all the 
+ * variables that are specific to the star. A structure of this 
+ * type is initialised by every finction that needs stellar paramerter.
+ * In this way, Only one function need calculate the parameters.
+ *
+ *********************************************************************** */
+{
 
-  double Mratio, Lratio, Bcgs, T, mu, a, b, Q, a_eff, M_star, Edd, eta, Rratio;
-  double L, c, M_dot, cs, Bq, v_esc, v_inf, vv, beta, M_dot_cgs, v_inf_cgs;
-  double x, y, z, xp, yp, zp, r, theta, Rcgs, omega;
-  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
-  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
+  double eta;
+  double mass;
+  double radius;
+  double Eddington;
+  double luminosity;
+  double temperature;
+  double alpha;
+  double q_fac;
+  double mass_loss;
+  double sound_speed;
+  double escape_velocity;
+  double terminal_velocity;
+  double vel_law_exponent;
+  double Bfield;
+  double gravity;
+  double rotational_velocity;
+  double mean_mol;
+  double Bfield_angle;
+  double surface_rho_param;
 
-  eta = g_inputParam[Eta];
-  Rratio = g_inputParam[R_RATIO];
-  Mratio = g_inputParam[M_RATIO];
-  Lratio = g_inputParam[L_RATIO];
-  omega = g_inputParam[OMEGA];
-  T = g_inputParam[TT];
-  mu = g_inputParam[MU];
-  a = g_inputParam[AA];
-  b = g_inputParam[Bb];
-  Q = g_inputParam[QQ];
-  beta = g_inputParam[BB];
-  a_eff = g_inputParam[aa_eff];
+} Star;
+/* ********************************************************************* */
 
-  M_star = (Mratio*CONST_Msun/UNIT_MASS);
-  Edd = (2.6e-5*(Lratio)*(1.0/Mratio));
-  L = (Lratio*L_sun/UNIT_L);
-  c = 3.0e+5;
+void InitStar1(Star *star1);
+void InitMagneticField(double *magnetic_field, double x1, double x2, double x3, Star star1);
+void CAKAcceleration(const Data *d, Grid *grid, Star star1, int i, int j, int k);
+double FiniteDiskCorrection(double *gradV, double vx1, double x1, double alpha);
+void VelocityGradientVector(const Data *d, double *x1, double *x2, double *x3,
+                            int i, int j, int k, double *gradV);
+void AccelVectorRadial(double *gline, const Data *d, double f, double x1, 
+                       double *gradV, Star star1, int i, int j, int k);
+void AccelVectorNonRadial(double *gline, const Data *d, double f, double x1, 
+                          double *gradV, Star star1, int i, int j, int k);
 
-  M_dot= (L/(c*c))*(a/(1.0 - a))*pow(Q*Edd/(1.0 - Edd), (1.0 - a)/a);
-  M_dot=M_dot*pow(1 + a, -1.0/a);
-  M_dot_cgs = M_dot*UNIT_MASS/UNIT_TIME;
+/* ********************************************************************* */
+void InitStar1(Star *star1)
+/*!
+ * Calculate components of the velocity gradient.
+ *
+ * \param [in]  star1  poniter to star type data container.
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
+{
 
-  cs = sqrt(UNIT_kB*T/(mu*(CONST_AH/UNIT_MASS)*CONST_amu));
-  v_esc = sqrt(2.0*UNIT_G*M_star*(1.0-Edd));                              
-  v_inf = v_esc * sqrt((a/(1.0 - a)));                                      
-  v_inf_cgs = v_inf*UNIT_VELOCITY;
-  vv = v_inf*pow(1.0 - 1.0/x1, b);                                      
+  star1->eta = g_inputParam[Eta];
 
+  star1->mass = g_inputParam[M_star]*CONST_Msun/UNIT_MASS;
 
-  Bcgs = sqrt(eta*M_dot_cgs*v_inf_cgs/pow(UNIT_LENGTH, 2));
-  Bq = Bcgs/UNIT_B;
+  star1->radius = g_inputParam[R_star]*CONST_Rsun/UNIT_LENGTH;
 
-  g_smallPressure = (v[RHO])*T/(KELVIN*mu);
+  star1->Eddington = 2.6e-5*g_inputParam[L_star]
+                    *(1.0/g_inputParam[M_star]);
+
+  star1->luminosity = g_inputParam[L_star]*L_sun/UNIT_L;
+
+  star1->temperature = g_inputParam[T_star];
+
+  star1->alpha = g_inputParam[CAK_alpha];
+
+  star1->q_fac = g_inputParam[Q_factor];
+
+  star1->mass_loss = star1->luminosity/(UNIT_c*UNIT_c)*star1->alpha/(1.0 - star1->alpha)
+                    *pow(g_inputParam[Q_factor]*star1->Eddington
+                         /(1.0 - star1->Eddington), 
+                         (1.0 - star1->alpha)/star1->alpha)
+                    *pow(1.0 + star1->alpha, -1.0/star1->alpha);
+
+  star1->sound_speed = sqrt(UNIT_kB*star1->temperature
+    /(star1->mean_mol*(CONST_AH/UNIT_MASS)*CONST_amu));
+
+  star1->escape_velocity = sqrt(2.0*UNIT_G*star1->mass*(1.0 - star1->Eddington));                              
+
+  star1->terminal_velocity = star1->escape_velocity
+    *sqrt(star1->alpha/(1.0 - star1->alpha));
+
+  star1->vel_law_exponent = g_inputParam[Velocity_exponent];
+
+  star1->Bfield = sqrt(g_inputParam[Eta]
+                 *star1->mass_loss*UNIT_MASS/UNIT_TIME
+                 *star1->terminal_velocity*UNIT_VELOCITY
+                 /pow(UNIT_LENGTH, 2))/UNIT_B;
+
+  star1->gravity = -UNIT_G*star1->mass*(1.0 - star1->Eddington);
+
+  star1->rotational_velocity = g_inputParam[Rotation]*sqrt(UNIT_G*star1->mass);
+
+  star1->mean_mol = g_inputParam[Mean_mol_waight];
+
+  star1->Bfield_angle = g_inputParam[Magnetic_incl];
+
+  star1->surface_rho_param = g_inputParam[Cs_p];
+
+  return;
+}
+/* ********************************************************************* */
+
+/* ********************************************************************* */
+void Init (double *v, double x1, double x2, double x3)
+/*!
+ * Initilise the state vector with physical values accourding to 
+ * user supplied expressions.
+ *
+ * \param [in]  v   pointer to the state vector array.
+ * \param [in]  x1  x1 position
+ * \param [in]  x2  x2 position
+ * \param [in]  x3  x3 position
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
+{
+
+  double velocity, magnetic_field[3];
+
+  Star star1;
+  InitStar1(&star1);
+
+  // Set the minimum pressure via the stellar temperature.
+  g_smallPressure = v[RHO]*star1.temperature/(KELVIN*star1.mean_mol);
 
 # if COOLING !=NO
-g_minCoolingTemp = g_inputParam[TT]; //Dylan,Asif: this sets minimum T of the sim.
-                                     // there is also gmaxCoolingRate that can limit timestep.
-                                     // it will be worthwhile to use it as well.
+  /* Dylan,Asif: this sets minimum T of the sim.
+     there is also gmaxCoolingRate that can limit timestep.
+     it will be worthwhile to use it as well. */
+  g_minCoolingTemp = star1.temperature;
 # endif 
+
 #if EOS == IDEAL
   g_gamma = 1.05;
 #endif
 
 #if EOS == ISOTHERMAL                                                  
-  g_isoSoundSpeed = sqrt(UNIT_kB*T/(mu*(CONST_AH/UNIT_MASS)*CONST_amu));
+  g_isoSoundSpeed = star1.sound_speed;
 #endif
 
 #if ROTATING_FRAME == YES                                                          
- // g_OmegaZ = omega*sqrt((8.0*UNIT_G*M_star)/27.0);                                  
-  g_OmegaZ = omega*sqrt((8.0*UNIT_G*M_star)/27.0);                                  
-#endif                                                                             
+  g_OmegaZ = star1.rotational_velocity;
+#endif
 
-  //if(x1 < 1.02 && x2 < CONST_PI/100. && x3 < CONST_PI/100.){
-  //  printf("Bcgs=%e, M_dotcgs=%e, Edd_gam=%e , Omega=%e  \n",Bcgs,M_dot_cgs/6.35e25,Edd, g_OmegaZ*UNIT_VELOCITY);
- // }
-
-#if EOS == ISOTHERMAL                                                              
-  v[RHO] = (M_dot/(4.0*CONST_PI*vv*x1*x1));                                         
-#endif                                                                             
-
-#if EOS == IDEAL                                                              
-  v[RHO] = (M_dot/(4.0*CONST_PI*vv*x1*x1));                                         
-  v[PRS] = (v[RHO]*T/(KELVIN*mu));                                                  
+  velocity = star1.terminal_velocity
+             *pow(1.0 - star1.radius/x1, star1.vel_law_exponent);
+  v[RHO] = (star1.mass_loss/(4.0*CONST_PI*velocity*x1*x1));
+#if EOS == IDEAL
+  v[PRS] = (v[RHO]*star1.temperature/(KELVIN*star1.mean_mol));
 #endif                                                               
-
-  EXPAND(v[VX1] = vv;,                                                 
-         v[VX2] = 0.0;,                               
-         v[VX3] = 0.0;)                 
-  v[TRC] = 0.0;                                                                     
+  EXPAND(v[VX1] = velocity;,
+         v[VX2] = 0.0;,
+         v[VX3] = 0.0;)
+  v[TRC] = 0.0;
 
 #if PHYSICS == MHD                                   
 #if BACKGROUND_FIELD == NO
-
-  beta *= 0.0174532925;
-
-  // Convert to Cartesian.
-  x = x1*sin(x2)*cos(x3);
-  y = x1*sin(x2)*sin(x3);
-  z = x1*cos(x2);
-  // Rotate Cartesian coordiantes.
-  xp = x*cos(beta) - z*sin(beta);
-  yp = y;
-  zp = x*sin(beta) + z*cos(beta);
-  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
-  rp = sqrt(rp2);
-
-  // Calculate b-field components in rotated frame.
-  bx = 3.0*xp*zp*Bq*pow(rp,-5);
-  by = 3.0*yp*zp*Bq*pow(rp,-5);
-  bz = (3.0*pow(zp,2)-pow(rp,2))*Bq*pow(rp,-5);
-
-  // Rotate B-field vector componets.  
-  bxp = bx*cos(beta) + bz*sin(beta);
-  byp = by;
-  bzp = -bx*sin(beta) + bz*cos(beta);
-
-  // Define spherical basis vectors.
-  a11 = sin(x2)*cos(x3); a12 = sin(x2)*sin(x3); a13 = cos(x2);
-  a21 = cos(x2)*cos(x3); a22 = cos(x2)*sin(x3); a23 = -sin(x2);
-  a31 = -sin(x3);        a32 = cos(x3);         a33 = 0.0;
-
-  // Change basis back to spherical polar.
-  br = bxp*a11 + byp*a12 + bzp*a13;
-  btheta = bxp*a21 + byp*a22 + bzp*a23;
-  bphi = bxp*a31 + byp*a32 + bzp*a33;
-
-  EXPAND(v[BX1] = br;,            
-         v[BX2] = btheta;,                 
-         v[BX3] = bphi;) 
-
+  InitMagneticField(magnetic_field, x1, x2, x3, star1);
+  EXPAND(v[BX1] = magnetic_field[0];,
+         v[BX2] = magnetic_field[1];,
+         v[BX3] = magnetic_field[2];)
 #endif
 #if BACKGROUND_FIELD == YES
   EXPAND(v[BX1] = 0.0;,
@@ -145,111 +199,70 @@ g_minCoolingTemp = g_inputParam[TT]; //Dylan,Asif: this sets minimum T of the si
 #endif
 #endif
 
+  return;
 }                                                                          
+/* ********************************************************************* */
 
-/*================================================================================*/
+/* ********************************************************************* */
 void Analysis (const Data *d, Grid *grid)
+/*!
+ *
+ *
+ * \param [in]  d     pointer to the main PLUTO data structure.
+ * \param [in]  grid  pointer to an array of Grid structures.
+ *
+ * \return  This function has no return value.
+ *
+ * TODO None
+ *********************************************************************** */
 {
+  return;
 }
-/*================================================================================*/
+/* ********************************************************************* */
 
-/*================================================================================*/
 #if BACKGROUND_FIELD == YES
-void BackgroundField (double x1, double x2, double x3, double *B0)                                                    
-{                                                                                                                    
-  double Rratio, Lratio, Mratio;
-  double M_dot, v_inf, a, Q, Edd, a_ff, L, c;
-  double eta, M_dot_cgs, v_inf_cgs, Rcgs;
-  double Bq, Bcgs, beta, r, v_esc, a_eff, M_star;
-  double x, y, z;
-  double xp, yp, zp;
-  double theta;
-  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
-  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
-
-  beta = g_inputParam[BB];
-  eta = g_inputParam[Eta];
-  Rratio = g_inputParam[R_RATIO];
-  Mratio = g_inputParam[M_RATIO];
-  Lratio = g_inputParam[L_RATIO];
-  a = g_inputParam[AA];
-  Q = g_inputParam[QQ];
-  a_eff = g_inputParam[aa_eff];
-
-  Rcgs = Rratio*UNIT_LENGTH;
-  Edd = (2.6e-5*(Lratio)*(1.0/Mratio));
-  L = (Lratio*L_sun/UNIT_L);
-  M_star = (Mratio*CONST_Msun/UNIT_MASS);
-  c = 3.0e+5;
-  v_esc = sqrt(2.0*UNIT_G*M_star*(1.0 - Edd));                              
-  v_inf = v_esc*sqrt((a/(1.0 - a)));                                      
-  v_inf_cgs = v_inf*UNIT_VELOCITY;
-
-  M_dot= (L/(c*c))*(a/(1.0 - a))*pow(Q*Edd/(1.0 - Edd),((1.0 - a)/a));
-  M_dot=M_dot*pow(1 + a, -1.0/a);
-  M_dot_cgs = M_dot*UNIT_MASS/UNIT_TIME;
-
-  Bcgs = sqrt(eta*M_dot_cgs*v_inf_cgs/pow(UNIT_LENGTH, 2));
-  Bq = Bcgs/UNIT_B;
-
-  beta *= 0.0174532925;
-
-  // Convert to Cartesian.
-  x = x1*sin(x2)*cos(x3);
-  y = x1*sin(x2)*sin(x3);
-  z = x1*cos(x2);
-  // Rotate Cartesian coordiantes.
-  xp = x*cos(beta) - z*sin(beta);
-  yp = y;
-  zp = x*sin(beta) + z*cos(beta);
-  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
-  rp = sqrt(rp2);
-
-  // Calculate b-field components in rotated frame.
-  bx = 3.0*xp*zp*Bq*pow(rp,-5);
-  by = 3.0*yp*zp*Bq*pow(rp,-5);
-  bz = (3.0*pow(zp,2)-pow(rp,2))*Bq*pow(rp,-5);
-
-  // Rotate B-field vector componets.  
-  bxp = bx*cos(beta) + bz*sin(beta);
-  byp = by;
-  bzp = -bx*sin(beta) + bz*cos(beta);
-
-  // Define spherical basis vectors.
-  a11 = sin(x2)*cos(x3); a12 = sin(x2)*sin(x3); a13 = cos(x2);
-  a21 = cos(x2)*cos(x3); a22 = cos(x2)*sin(x3); a23 = -sin(x2);
-  a31 = -sin(x3);        a32 = cos(x3);         a33 = 0.0;
-
-  // Change basis back to spherical polar.
-  br = bxp*a11 + byp*a12 + bzp*a13;
-  btheta = bxp*a21 + byp*a22 + bzp*a23;
-  bphi = bxp*a31 + byp*a32 + bzp*a33;
-
-  EXPAND(B0[0] = br;,
-         B0[1] = btheta;,
-         B0[2] = bphi;)
-
+/* ********************************************************************* */
+void BackgroundField (double x1, double x2, double x3, double *B0)
+/*!
+ *
+ *
+ * \param [in]  d     pointer to the main PLUTO data structure.
+ * \param [in]  grid  pointer to an array of Grid structures.
+ *
+ * \return  This function has no return value.
+ *
+ * TODO None
+ *********************************************************************** */
+{
+  double magnetic_field[3];
+  Star star1;
+  InitStar1(&star1);
+  InitMagneticField(magnetic_field, x1, x2, x3, star1);
+  EXPAND(B0[0] = magnetic_field[0];,
+         B0[1] = magnetic_field[1];,
+         B0[2] = magnetic_field[2];)
+  return;
 }
+/* ********************************************************************* */
 #endif
-/*================================================================================*/
 
-void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {        
-/*================================================================================*/
+/* ********************************************************************* */
+void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) 
+/*!
+ *
+ *
+ * \param [in]  d     pointer to the main PLUTO data structure.
+ * \param [in]  grid  pointer to an array of Grid structures.
+ *
+ * \return  This function has no return value.
+ *
+ * TODO None
+ *********************************************************************** */
+{        
 
-  int i, j, k, ip, kp, jp, ghost;
+  int i, j, k, ghost;
 
-  double h, temp;
-  double Idr, Iv1, Iv2,dxi,dxim1;
-
-  double Cs_p, Mratio, Lratio, T, mu, a, b, Q, a_eff, M_star, Edd, Rratio;
-  double L, c, M_dot, ke, Omega2, A, Bcgs, cs, eta, Bq;
-  double nu2_c, B, sigma, f, gg, beta, Rcgs, vv;
-  double x, y, z, xp, yp, zp, r, theta, v_inf, v_esc, v_inf_cgs, M_dot_cgs;
-  double vradial, vtheta, vphi;
-  double dvdx1, dvdx2, dvdx3;
-  double beta_op, opa, oma;
-  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
-  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
+  double vradial, vtheta, vphi, magnetic_field[3];
 
   double *x1 = grid[IDIR].x;                                                  
   double *x2 = grid[JDIR].x;                                                  
@@ -273,281 +286,525 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid) {
   double ***bx3 = d->Vc[BX3];
 #endif
 
-  eta = g_inputParam[Eta];
-  Rratio = g_inputParam[R_RATIO];
-  Cs_p = g_inputParam[Cs_P];
-  Mratio = g_inputParam[M_RATIO];
-  Lratio = g_inputParam[L_RATIO];
-  T = g_inputParam[TT];
-  mu = g_inputParam[MU];
-  a = g_inputParam[AA];
-  opa = 1.0 + a;
-  oma = 1.0 - a;
-  b = g_inputParam[Bb];
-  Q = g_inputParam[QQ];
-  a_eff = g_inputParam[aa_eff];
-
-  M_star = (Mratio*CONST_Msun/UNIT_MASS);
-  Edd = (2.6e-5*(Lratio)*(1.0/Mratio));
-  L = (Lratio*L_sun/UNIT_L);
-  c = 3.0e+5;
-
-  M_dot= (L/(c*c))*(a/(1.0 - a))*pow(Q*Edd/(1.0 - Edd), ((1.0 - a)/a));
-  M_dot=M_dot*pow(1.0 + a, -1.0/a);
-//  M_dot=M_dot*(1.0+4.*sqrt(1.-a)*cs/a/v_esc); // accounts for sound speed, expected mdot will be higher but makes 
-//  no difference for the simulation which controls rho_* 
-  M_dot_cgs = M_dot*UNIT_MASS/UNIT_TIME;
-
-  ke = ((4.0*CONST_PI*UNIT_G*M_star*c*Edd)/L);
-  Omega2 = pow(0.5,2)*(8.0/27.0)*UNIT_G*M_star;
-  A = ((1.0/(1.0-a))*((ke*L*Q)/(4.0*CONST_PI*c)));
-  cs = sqrt(UNIT_kB*T/(mu*(CONST_AH/UNIT_MASS)*CONST_amu));
-  Bq = Bcgs/UNIT_B;
-  v_esc = sqrt(2.0*UNIT_G*M_star*(1.0 - Edd));                              
-  v_inf = v_esc*sqrt((a/(1.0 - a)));                                      
-  v_inf_cgs = v_inf*UNIT_VELOCITY;
-
-#if EOS == ISOTHERMAL                                                  
-  g_isoSoundSpeed = sqrt(UNIT_kB*T/(mu*(CONST_AH/UNIT_MASS)*CONST_amu));
-#endif       
-
-  beta = 0.0174532925*g_inputParam[BB];
-
-#if EOS == IDEAL
-  g_gamma = 1.05;
-#endif
-
-  Bcgs = sqrt(eta*M_dot_cgs*v_inf_cgs/pow(UNIT_LENGTH, 2));
-  Bq = Bcgs/UNIT_B;
+  Star star1;
+  InitStar1(&star1);
 
   ghost = (NX1_TOT - NX1)/2;
 
+  if(g_stepNumber < 2){
+    double Bcgs = star1.Bfield*UNIT_B;
+    double M_dot_cgs = star1.mass_loss*UNIT_MASS/UNIT_TIME;
+    double v_inf_cgs = star1.terminal_velocity*UNIT_VELOCITY;
+    printf("Bcgs=%e, M_dotcgs=%e, Edd_gam=%e , Omega=%e  \n", 
+           Bcgs, M_dot_cgs/6.35e25, star1.Eddington, 
+           star1.rotational_velocity*UNIT_VELOCITY);
+  }
+
+
   if(side == X1_BEG){                          
-    if(box->vpos == CENTER){
-      BOX_LOOP(box,k,j,i){ 
+    BOX_LOOP(box,k,j,i){ 
   
-        rho[k][j][i] = (M_dot/(4.0*CONST_PI*(cs/Cs_p)));          
-
-#if EOS == IDEAL
-        prs[k][j][i] = ((rho[k][j][i])*T/(KELVIN*mu));          
-#endif
-
-
-
-//
 #if PHYSICS == MHD
-        if (eta < 5000.0) {
+      if (star1.eta < 5000.0) {
 #endif
-          EXPAND(vradial = 2.0*vx1[k][j][ghost] - vx1[k][j][ghost+1];,
-                 vtheta = 0.0;,
-                 vphi = 0.0;)
+        EXPAND(vradial = 2.0*vx1[k][j][ghost] - vx1[k][j][ghost+1];,
+               vtheta = 0.0;,
+               vphi = 0.0;)
 #if PHYSICS == MHD
-        } else if (eta > 5000.0) {
-          EXPAND(vradial = 2.0*vx1[k][j][ghost] - vx1[k][j][ghost+1];,
-                 vtheta = 2.0*vx2[k][j][ghost] - vx2[k][j][ghost+1];,
-                 vphi = 0.0;)
-        }
+      } else if (star1.eta > 5000.0) {
+        EXPAND(vradial = 2.0*vx1[k][j][ghost] - vx1[k][j][ghost+1];,
+               vtheta = 2.0*vx2[k][j][ghost] - vx2[k][j][ghost+1];,
+               vphi = 0.0;)
+      }
 #endif
 
-        if (vradial > cs){
-          EXPAND(vradial = cs;,
-                 vtheta = vtheta;,
-                 vphi = vphi;)
-        } else if (vradial < -cs){
-          EXPAND(vradial = -cs;,
-                 vtheta = vtheta;,
-                 vphi = vphi;)
-        }
+      if (vradial > star1.sound_speed){
+        EXPAND(vradial = star1.sound_speed;,
+               vtheta = vtheta;,
+               vphi = vphi;)
+      } else if (vradial < -star1.sound_speed){
+        EXPAND(vradial = -star1.sound_speed;,
+               vtheta = vtheta;,
+               vphi = vphi;)
+      }
 
-        if (vtheta > cs){
-          EXPAND(vradial = vradial;,
-                 vtheta = cs;,
-                 vphi = vphi;)
-        } else if (vradial < -cs){
-          EXPAND(vradial = vradial;,
-                 vtheta = -cs;,
-                 vphi = vphi;)
-        }
+      if (vtheta > star1.sound_speed){
+        EXPAND(vradial = vradial;,
+               vtheta = star1.sound_speed;,
+               vphi = vphi;)
+      } else if (vradial < -star1.sound_speed){
+        EXPAND(vradial = vradial;,
+               vtheta = -star1.sound_speed;,
+               vphi = vphi;)
+      }
 
-        EXPAND(vx1[k][j][i] = vradial;,
-               vx2[k][j][i] = vtheta;,
-               vx3[k][j][i] = vphi;)
-//
-
-        rho[k][j][i] = (M_dot/(4.0*CONST_PI*(cs/Cs_p)));          
-
+      EXPAND(vx1[k][j][i] = vradial;,
+             vx2[k][j][i] = vtheta;,
+             vx3[k][j][i] = vphi;)
+      rho[k][j][i] = star1.mass_loss
+        /(4.0*CONST_PI*(star1.sound_speed/star1.surface_rho_param));          
 #if EOS == IDEAL
-        prs[k][j][i] = ((rho[k][j][i])*T/(KELVIN*mu));          
+      prs[k][j][i] = rho[k][j][i]*star1.temperature/(KELVIN*star1.mean_mol);          
 #endif
 
 #if PHYSICS == MHD   
 #if BACKGROUND_FIELD == NO
-
-        beta *= 0.0174532925;
-
-        // Convert to Cartesian.
-        x = x1[i]*sin(x2[j])*cos(x3[k]);
-        y = x1[i]*sin(x2[j])*sin(x3[k]);
-        z = x1[i]*cos(x2[j]);
-  
-        // Rotate Cartesian coordiantes.
-        xp = x*cos(beta) - z*sin(beta);
-        yp = y;
-        zp = x*sin(beta) + z*cos(beta);
-        rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
-        rp = sqrt(rp2);
-
-        // Calculate b-field components in rotated frame.
-        bx = 3.0*xp*zp*Bq*pow(rp,-5);
-        by = 3.0*yp*zp*Bq*pow(rp,-5);
-        bz = (3.0*pow(zp,2)-pow(rp,2))*Bq*pow(rp,-5);
-
-        // Rotate B-field vector componets.  
-        bxp = bx*cos(beta) + bz*sin(beta);
-        byp = by;
-        bzp = -bx*sin(beta) + bz*cos(beta);
-
-        // Define spherical basis vectors.
-        a11 = sin(x2[j])*cos(x3[k]); a12 = sin(x2[j])*sin(x3[k]); a13 = cos(x2[j]);
-        a21 = cos(x2[j])*cos(x3[k]); a22 = cos(x2[j])*sin(x3[k]); a23 = -sin(x2[j]);
-        a31 = -sin(x3[k]);           a32 = cos(x3[k]);            a33 = 0.0;
-
-        // Change basis back to spherical polar.
-        br = bxp*a11 + byp*a12 + bzp*a13;
-        btheta = bxp*a21 + byp*a22 + bzp*a23;
-        bphi = bxp*a31 + byp*a32 + bzp*a33;
-
-        EXPAND(bx1[k][j][i] = br;,            
-               bx2[k][j][i] = btheta;,                 
-               bx3[k][j][i] = bphi;) 
-
+      InitMagneticField(magnetic_field, x1[i], x2[j], x3[k], star1);
+      EXPAND(bx1[k][j][i] = magnetic_field[0];,            
+             bx2[k][j][i] = magnetic_field[1];,                 
+             bx3[k][j][i] = magnetic_field[2];) 
 #endif
 #if BACKGROUND_FIELD == YES
-        EXPAND(bx1[k][j][i] = 0.0;,
-               bx1[k][j][i] = 0.0;,
-               bx1[k][j][i] = 0.0;)
+      EXPAND(bx1[k][j][i] = 0.0;,
+             bx1[k][j][i] = 0.0;,
+             bx1[k][j][i] = 0.0;)
 #endif
 #endif                                                            
-      }
     }
   }
+
                                                                    
+#if CAK == YES
   if(side == 0){
     DOM_LOOP(k,j,i){
-
-#if CAK == YES
-      dxi = x1[i+1] - x1[i];
-      dxim1 = x1[i] - x1[i-1];
-      dvdx1 = fabs(-dxi*vx1[k][j][i-1]/(dxim1*(dxi + dxim1)) + (dxi - dxim1)*
-                vx1[k][j][i]/(dxi*dxim1) + dxim1*vx1[k][j][i+1]/(dxi*(dxi + dxim1)));
-
-      nu2_c = 1.0 - 1.0/(x1[i]*x1[i]);
-      ke = 4.0*CONST_PI*UNIT_G*M_star*c*Edd/L;
-      B = rho[k][j][i]*Q*c*ke;
-      sigma = (x1[i]/fabs(vx1[k][j][i]))*(dvdx1) - 1.0; 
-
-//      f = ((pow(1.0 + sigma, 1.0 + a) - pow(1.0 + sigma*nu2_c, 1.0 + a))/
-//            ((1.0 + a)*(1.0 - nu2_c)*sigma*pow(1.0 + sigma, a)));  
-
-    if (dvdx1 != 0.0){
-        beta_op = (1.-vx1[k][j][i]/(dvdx1*x1[i])) * pow(1.0/x1[i],2);
-        if (beta_op >= 1.){
-            f = 1./opa;
-        }else if(beta_op < -1.e10){
-            f = pow(-beta_op, a) / opa;
-        }else if(fabs(beta_op) > 1.e-3){
-            f = (1.0 - pow(1.0 - beta_op, opa)) / (beta_op * opa);
-        }else{
-            f = 1.0 - 0.5 * a * beta_op * (1.0 + 1.0/3.0 * oma * beta_op);
-        }
-    }else{
-        f = 1.;
-    }
-
-      A = ((1.0/(1.0-a))*((ke*L*Q)/(4.0*CONST_PI*c)));
-
-      EXPAND(gLx1[k][j][i] = f*A*pow(x1[i], -2)*pow(dvdx1/B, a);,
-             gLx2[k][j][i] = 0.0;,
-             gLx3[k][j][i] = 0.0;)
-
+      CAKAcceleration(d, grid, star1, i, j, k);
 #if EOS == IDEAL
-      // Accounting for total ionisation at high temp 
-      // and for recombination at low temp.
-      temp = prs[k][j][i]*KELVIN*mu/rho[k][j][i];
-      gLx1[k][j][i] *= exp(-4.0*log(2.0)*pow((2.0 - temp/T - T/temp), 2));
-#endif
-
-      // This if statement acounts for when the gradient 
-      // is zero, leading to the acceleration going to -nan 
-      // due to sigma.
-      if (fabs(dvdx1) < 1.0e-8){
-        //printf("x1=%e, dvdx1=%e, f=%e, sigma=%e, nu2_c=%e, gLx1=%e \n", x1, dvdx1, f, sigma, nu2_c, gLx1);
-        gLx1[k][j][i] = 0.0;
+      if (d->Vc[PRS][k][j][i] < (rho[k][j][i])*star1.temperature/(KELVIN*star1.mean_mol)){
+        d->Vc[PRS][k][j][i] = (rho[k][j][i])*star1.temperature/(KELVIN*star1.mean_mol);
       }
 #endif
-      
-
-#if EOS == IDEAL
-      if (d->Vc[PRS][k][j][i] < (rho[k][j][i])*T/(KELVIN*mu)){
-        d->Vc[PRS][k][j][i] = (rho[k][j][i])*T/(KELVIN*mu);
-      }
-#endif
-
     }
   }
+#endif
+
+  return;
 }                                                                          
-/*================================================================================*/
+/* ********************************************************************* */
+
 #if BODY_FORCE != NO
 #if CAK == YES
+/* ********************************************************************* */
 void BodyForceVector(double *v, double *gla, double *g, double x1, double x2, double x3)
+/*!
+ *
+ *
+ * \param [in]       x1              x1 position
+ * \param [in]       x2              x2 position
+ * \param [in]       x3              x3 position
+ * \param [in]       star1           poniter to star type data container.
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
 {
-  double L, A, ke, a, M_star, gg, Edd, Mratio, Lratio, Q, T;
-  double h, c, dvdx1, nu2_c, B, sigma, f, gLx1, mu, temp;
-  double Idr, Iv1, Iv2,dxi,dxim1;
-
-  c = 3.0e+5;
-  a = g_inputParam[AA];
-  Q = g_inputParam[QQ];               
-  mu = g_inputParam[MU];
-  Mratio = g_inputParam[M_RATIO];
-  Lratio = g_inputParam[L_RATIO];
-  T = g_inputParam[TT];
-
-  M_star = Mratio*CONST_Msun/UNIT_MASS;
-  L = Lratio*L_sun/UNIT_L;
-  Edd = 2.6e-5*(Lratio)*(1.0/Mratio);
-  gg = -UNIT_G*M_star*(1.0 - Edd)/x1/x1;
-
+  Star star1;
+  InitStar1(&star1);
   if (x1 > 1.0){
-    g[IDIR] = gg + gla[0];
+    g[IDIR] = star1.gravity/x1/x1 + gla[0];
     g[JDIR] = 0.0;
     g[KDIR] = 0.0;
   } else {
-    g[IDIR] = gg;
+    g[IDIR] = star1.gravity/x1/x1;
     g[JDIR] = 0.0;
     g[KDIR] = 0.0;
   }
-  
+  return;
 }
+/* ********************************************************************* */
 #endif
 
 #if CAK == NO
+/* ********************************************************************* */
 void BodyForceVector(double *v, double *g, double x1, double x2, double x3)
+/*!
+ *
+ *
+ * \param [in]       x1              x1 position
+ * \param [in]       x2              x2 position
+ * \param [in]       x3              x3 position
+ * \param [in]       star1           poniter to star type data container.
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
 {
-  double M_star, gg, Edd, Mratio, Lratio;
-
-  Mratio = g_inputParam[M_RATIO];
-  M_star = (Mratio*CONST_Msun/UNIT_MASS);
-  Lratio = g_inputParam[L_RATIO];
-  Edd = (2.6e-5*(Lratio)*(1.0/Mratio));
-
-  gg = -UNIT_G*M_star*(1.0 - Edd)/x1/x1;
-
-  g[IDIR] = gg;
+  Star star1;
+  InitStar1(&star1);
+  g[IDIR] = star1.gravity/x1/x1;
   g[JDIR] = 0.0;
   g[KDIR] = 0.0;
+  return;
 }
+/* ********************************************************************* */
 #endif
 #endif
-/*================================================================================*/
+
+/* ********************************************************************* */
+void CAKAcceleration(const Data *d, Grid *grid, Star star1, int i, int j, int k)
+/*!
+ * Calculate CAK line force acceleration.
+ *
+ * \param [in]  d      pointer to the main PLUTO data structure
+ * \param [in]  grid   pointer to an array of Grid structures.
+ * \param [in]  star1  poniter to star type data container.
+ * \param [in]  i      x1 direction index
+ * \param [in]  j      x2 direction index
+ * \param [in]  k      x3 direction index
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
+{
+
+  double temp, f;
+  double gradV[3], gline[3];
+
+  double *x1 = grid[IDIR].x;                                                  
+  double *x2 = grid[JDIR].x;                                                  
+  double *x3 = grid[KDIR].x;
+
+  VelocityGradientVector(d, x1, x2, x3, i, j, k, gradV);
+
+  f = FiniteDiskCorrection(gradV, d->Vc[VX1][k][j][i], x1[i], star1.alpha);
+
+  AccelVectorRadial(gline, d, f, x1[i], gradV, star1, i, j, k);
+
+  EXPAND(d->gL[0][k][j][i] = gline[0];,
+         d->gL[1][k][j][i] = gline[1];,
+         d->gL[2][k][j][i] = gline[2];)
+
+
+  return;
+}
+/* ********************************************************************* */
+
+/* ********************************************************************* */
+void VelocityGradientVector(const Data *d, double *x1, double *x2, double *x3,
+                            int i, int j, int k, double *gradV)
+/*!
+ * Calculate components of the velocity gradient.
+ *
+ * \param [in]       d     pointer to the main PLUTO data structure
+ * \param [in]       x1    x1 direction array
+ * \param [in]       x2    x2 direction array
+ * \param [in]       x3    x3 direction array
+ * \param [in]       i     x1 direction index
+ * \param [in]       j     x2 direction index
+ * \param [in]       k     x3 direction index
+ * \param [in, out]  dvdx  array containing velocity gradient components
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
+{
+
+  int Nghost, mark=0;
+  double dxi, dxim1, dvdx1, dvdx2, dvdx3;
+
+  dxi = x1[i+1] - x1[i];
+  dxim1 = x1[i] - x1[i-1];
+
+  dvdx1 = fabs(-dxi*d->Vc[VX1][k][j][i-1]/(dxim1*(dxi + dxim1)) 
+            + (dxi - dxim1)*d->Vc[VX1][k][j][i]/(dxi*dxim1) 
+            + dxim1*d->Vc[VX1][k][j][i+1]/(dxi*(dxi + dxim1)));
+  dvdx2 = 0.0;
+  dvdx3 = 0.0;
+
+  if (isnan(dvdx1) || isnan(d->Vc[VX1][k][j][i]) || isnan(d->Vc[VX1][k][j][i-1]) || isnan(d->Vc[VX1][k][j][i+1])) {
+    printf("dvdx1=%e, x1=%e \n", dvdx1, x1[i]);
+    printf("d->Vc[VX1][k][j][i-1]=%e \n", d->Vc[VX1][k][j][i-1]);
+    printf("d->Vc[VX1][k][j][i]=%e \n", d->Vc[VX1][k][j][i]);
+    printf("d->Vc[VX1][k][j][i+1]=%e \n", d->Vc[VX1][k][j][i+1]);
+    dvdx1 = 0.0;
+    mark = 1;
+  }
+
+  if (fabs(dvdx1) < 1.0e-8) {
+    dvdx1 = 1.0e-8;
+  } else if (fabs(dvdx2) < 1.0e-8) {
+    dvdx2 = 1.0e-8;
+  } else if (fabs(dvdx3) < 1.0e-8) {
+    dvdx3 = 1.0e-8;
+  }
+
+  // To catch small gradient values.
+  MAX(dvdx1, 1.0e-8);
+  MAX(dvdx2, 1.0e-8);
+  MAX(dvdx3, 1.0e-8);
+
+  if (mark == 1) {
+    printf("dvdx1=%e, x1=%e \n", dvdx1, x1[i]);
+  }
+
+  gradV[0] = dvdx1;
+  gradV[1] = dvdx2;
+  gradV[2] = dvdx3;
+
+  //if (isnan(gradV[0])){
+  //  printf("x1=%e, gradV[0]=%e \n", x1[i], gradV[0]);
+  //  printf("dxi=%e, dxim1=%e, dvdx1=%e, VX1[i-1]=%e, VX1[i+1]=%e, \n", 
+  //         dxim1, dxim1, dvdx1, d->Vc[VX1][k][j][i-1], d->Vc[VX1][k][j][i+1]);
+  //}
+
+  return;
+}
+/* ********************************************************************* */
+
+/* ********************************************************************* */
+double FiniteDiskCorrection(double *gradV, double vx1, double x1, double alpha)
+/*!
+ * Calculate finite disk correction factor.
+ *
+ * \param [in]  gradV  velocity gradient vector
+ * \param [in]  vx1    velocity at the current cell
+ * \param [in]  x1     x1 position 
+ * \param [in]  alpha  CAK force multiplyer
+ *
+ * \return f
+ *
+ * \TODO None
+ *********************************************************************** */
+{
+
+  double beta_op, opa, oma, sigma, f, nu2_c;
+
+  opa = 1.0 + alpha;
+  oma = 1.0 - alpha;
+
+  if (fabs(gradV[0]) > 1.0e-8){
+
+    beta_op = (1.0 - vx1/(gradV[0]*x1)) * pow(1.0/x1, 2);
+
+    if (beta_op >= 1.0){
+      f = 1.0/opa;
+    }else if(beta_op < -1.0e10){
+      f = pow(-beta_op, alpha)/opa;
+    }else if(fabs(beta_op) > 1.0e-3){
+      f = (1.0 - pow(1.0 - beta_op, opa))/(beta_op * opa);
+    }else{
+      f = 1.0 - 0.5*alpha*beta_op*(1.0 + 1.0/3.0*oma*beta_op);
+    }
+
+  }else{
+    f = 1.0;
+  }
+
+  if (isnan(f)) {
+    printf("f=%e \n", f);
+  }
+
+  //nu2_c = 1.0 - 1.0/(x1*x1);
+  //sigma = x1/fabs(vx1)*(gradV[0]) - 1.0; 
+  //f = ((pow(1.0 + sigma, 1.0 + alpha) - pow(1.0 + sigma*nu2_c, 1.0 + alpha))/
+  //    ((1.0 + alpha)*(1.0 - nu2_c)*sigma*pow(1.0 + sigma, alpha)));  
+
+  return f;
+}
+/* ********************************************************************* */
+
+/* ********************************************************************* */
+void AccelVectorRadial(double *gline, const Data *d, double f, double x1, 
+                       double *gradV, Star star1, int i, int j, int k)
+/*!
+ * Calculate components of the velocity gradient.
+ *
+ * \param [in, out]  gline  array containing acceleration components
+ * \param [in]       f      finite disk correction factor
+ * \param [in]       A      prarmeter 
+ * \param [in]       B      B factor
+ * \param [in]       x1     position in radius
+ * \param [in]       temp   temperature at x1
+ * \param [in]       star1  poniter to star type data container
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
+{
+
+  double B, A, ke, temp;
+
+  ke = 4.0*CONST_PI*UNIT_G*star1.mass*UNIT_c
+         *star1.Eddington/star1.luminosity;
+
+  B = d->Vc[RHO][k][j][i]*star1.q_fac*UNIT_c*ke;
+
+  A = 1.0/(1.0 - star1.alpha)*ke*star1.luminosity
+        *star1.q_fac/(4.0*CONST_PI*UNIT_c);
+
+  if (isnan(gradV[0])) {
+    printf("gradV[0]=%e, \n", gradV[0]);
+  }
+
+  gline[0] = f*A*pow(x1, -2)*pow(gradV[0]/B, star1.alpha);
+
+  if (isnan(gradV[0])) {
+    gline[0] = 0.0;
+  }
+
+#if EOS == IDEAL
+  // Accounting for total ionisation at high temp 
+  // and for recombination at low temp.
+  temp = d->Vc[PRS][k][j][i]*KELVIN*star1.mean_mol/d->Vc[RHO][k][j][i];
+  gline[0] *= exp(-4.0*log(2.0)*pow((2.0 - temp/star1.temperature 
+             - star1.temperature/temp), 2));
+#endif
+
+  gline[1] = 0.0;
+  gline[2] = 0.0;
+
+  return;
+}
+/* ********************************************************************* */
+
+/* ********************************************************************* */
+void AccelVectorNonRadial(double *gline, const Data *d, double f, double x1, 
+                          double *gradV, Star star1, int i, int j, int k)
+/*!
+ * Calculate components of the velocity gradient.
+ *
+ * \param [in, out]  gline  array containing acceleration components
+ * \param [in]       f      finite disk correction factor
+ * \param [in]       A      prarmeter 
+ * \param [in]       B      B factor
+ * \param [in]       x1     position in radius
+ * \param [in]       temp   temperature at x1
+ * \param [in]       star1  poniter to star type data container
+ *
+ * \return void
+ *
+ * \TODO None
+ *********************************************************************** */
+{
+
+  double B, A, ke, temp;
+  double gradV_mag, g_mag, unit_vec[3];
+
+  // Unit vector in the direction of the velocity gradient.
+  gradV_mag = sqrt(gradV[0]*gradV[0] 
+                + gradV[1]*gradV[1] 
+                + gradV[2]*gradV[2]);
+  unit_vec[0] = gradV[0]/gradV_mag; 
+  unit_vec[1] = gradV[1]/gradV_mag; 
+  unit_vec[2] = gradV[2]/gradV_mag;
+
+  ke = 4.0*CONST_PI*UNIT_G*star1.mass*UNIT_c
+         *star1.Eddington/star1.luminosity;
+
+  B = d->Vc[RHO][k][j][i]*star1.q_fac*UNIT_c*ke;
+
+  A = 1.0/(1.0 - star1.alpha)*ke*star1.luminosity
+        *star1.q_fac/(4.0*CONST_PI*UNIT_c);
+
+  g_mag = f*A*pow(x1, -2)*pow(gradV_mag/B, star1.alpha);
+
+#if EOS == IDEAL
+  // Accounting for total ionisation at high temp 
+  // and for recombination at low temp.
+  temp = d->Vc[PRS][k][j][i]*KELVIN*star1.mean_mol/d->Vc[RHO][k][j][i];
+  g_mag *= exp(-4.0*log(2.0)*pow((2.0 - temp/star1.temperature 
+             - star1.temperature/temp), 2));
+#endif
+
+  if (isnan(gradV[0])) {
+    printf("gradV[0]=%e, gradV_mag=%e, g_mag=%e unit_vec[0]=%e, unit_vec[1]=%e, unit_vec[2]=%e \n", gradV[0], gradV_mag, g_mag, unit_vec[0], unit_vec[1], unit_vec[2]);
+
+  }
+
+  gline[0] = g_mag*unit_vec[0];
+  gline[1] = g_mag*unit_vec[1];
+  gline[2] = g_mag*unit_vec[2];
+
+  return;
+}
+/* ********************************************************************* */
+
+
+
+/* ********************************************************************* */
+void InitMagneticField(double *magnetic_field, 
+                       double x1, double x2, double x3, 
+                       Star star1)
+/*!
+ * Calculate components of the velocity gradient.
+ *
+ * \param [in, out]  magnetic_field  array containing 
+ *                                   magnetic field components
+ * \param [in]       x1              x1 position
+ * \param [in]       x2              x2 position
+ * \param [in]       x3              x3 position
+ * \param [in]       star1           poniter to star type data container
+ *
+ * \return void
+ *
+ * \TODO Move the magnetic field expressions to their own function.
+ *********************************************************************** */
+{
+
+  double x, y, z, xp, yp, zp, r, theta, Rcgs, omega;
+  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
+  double a11, a12, a13, a21, a22, a23, a31, a32, a33;
+
+  star1.Bfield_angle *= 0.0174532925;
+
+  // Convert to Cartesian.
+  x = x1*sin(x2)*cos(x3);
+  y = x1*sin(x2)*sin(x3);
+  z = x1*cos(x2);
+
+  // Rotate Cartesian coordiantes.
+  xp = x*cos(star1.Bfield_angle) - z*sin(star1.Bfield_angle);
+  yp = y;
+  zp = x*sin(star1.Bfield_angle) + z*cos(star1.Bfield_angle);
+  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
+  rp = sqrt(rp2);
+
+  // Calculate b-field components in rotated frame.
+  bx = 3.0*xp*zp*star1.Bfield*pow(rp,-5);
+  by = 3.0*yp*zp*star1.Bfield*pow(rp,-5);
+  bz = (3.0*pow(zp,2)-pow(rp,2))*star1.Bfield*pow(rp,-5);
+
+  // Rotate B-field vector componets.  
+  bxp = bx*cos(star1.Bfield_angle) + bz*sin(star1.Bfield_angle);
+  byp = by;
+  bzp = -bx*sin(star1.Bfield_angle) + bz*cos(star1.Bfield_angle);
+
+  // Define spherical basis vectors.
+  a11 = sin(x2)*cos(x3); a12 = sin(x2)*sin(x3); a13 = cos(x2);
+  a21 = cos(x2)*cos(x3); a22 = cos(x2)*sin(x3); a23 = -sin(x2);
+  a31 = -sin(x3);        a32 = cos(x3);         a33 = 0.0;
+
+  // Change basis back to spherical polar.
+  br = bxp*a11 + byp*a12 + bzp*a13;
+  btheta = bxp*a21 + byp*a22 + bzp*a23;
+  bphi = bxp*a31 + byp*a32 + bzp*a33;
+
+  magnetic_field[0] = br;
+  magnetic_field[1] = btheta; 
+  magnetic_field[2] = bphi;
+
+  return;
+}
+/* ********************************************************************* */
+
+
+/* ********************************************************************* */
+void VectorFieldRotation()
+/*!
+ *
+ *
+ *
+ *
+ *
+ *********************************************************************** */
+
+{
+
+  return;
+}
+
 
