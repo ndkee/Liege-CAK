@@ -70,9 +70,12 @@ endif
 # ---------------------------------------------------------
 
 OBJ += plm_states.o
+OBJ += vec_pot_diff.o
+OBJ += vec_pot_update.o
 OBJ += rk_step.o
 OBJ += update_stage.o
-include $(SRC)/HD/makefile
+include $(SRC)/MHD/makefile
+include $(SRC)/MHD/GLM/makefile
 include $(SRC)/EOS/Ideal/makefile
 
 # ---------------------------------------------------------

@@ -93,7 +93,7 @@ void InitStar1(Star *star1)
   star1->q_fac = g_inputParam[Q_factor];
 
   star1->mass_loss = star1->luminosity/(UNIT_c*UNIT_c)*star1->alpha/(1.0 - star1->alpha)
-                    *pow(g_inputParam[Q_factor]*star1->Eddington
+                    *pow(star1->q_fac*star1->Eddington
                          /(1.0 - star1->Eddington), 
                          (1.0 - star1->alpha)/star1->alpha)
                     *pow(1.0 + star1->alpha, -1.0/star1->alpha);
@@ -108,7 +108,7 @@ void InitStar1(Star *star1)
 
   star1->vel_law_exponent = g_inputParam[Velocity_exponent];
 
-  star1->Bfield = sqrt(g_inputParam[Eta]
+  star1->Bfield = sqrt(star1->eta
                  *star1->mass_loss*UNIT_MASS/UNIT_TIME
                  *star1->terminal_velocity*UNIT_VELOCITY
                  /pow(UNIT_LENGTH, 2))/UNIT_B;
@@ -157,6 +157,7 @@ void Init (double *v, double x1, double x2, double x3)
      there is also gmaxCoolingRate that can limit timestep.
      it will be worthwhile to use it as well. */
   g_minCoolingTemp = star1.temperature;
+  g_maxCoolingRate = 0.5;
 # endif 
 
 #if EOS == IDEAL
@@ -514,30 +515,12 @@ void VelocityGradientVector(const Data *d, double *x1, double *x2, double *x3,
   dvdx2 = 0.0;
   dvdx3 = 0.0;
 
-  if (isnan(dvdx1) || isnan(d->Vc[VX1][k][j][i]) || isnan(d->Vc[VX1][k][j][i-1]) || isnan(d->Vc[VX1][k][j][i+1])) {
-    printf("dvdx1=%e, x1=%e \n", dvdx1, x1[i]);
-    printf("d->Vc[VX1][k][j][i-1]=%e \n", d->Vc[VX1][k][j][i-1]);
-    printf("d->Vc[VX1][k][j][i]=%e \n", d->Vc[VX1][k][j][i]);
-    printf("d->Vc[VX1][k][j][i+1]=%e \n", d->Vc[VX1][k][j][i+1]);
-    dvdx1 = 0.0;
-    mark = 1;
-  }
-
-  if (fabs(dvdx1) < 1.0e-8) {
+  if (fabs(dvdx1) < 1.0e-8 || isnan(dvdx1)) {
     dvdx1 = 1.0e-8;
-  } else if (fabs(dvdx2) < 1.0e-8) {
+  } else if (fabs(dvdx2) < 1.0e-8 || isnan(dvdx2)) {
     dvdx2 = 1.0e-8;
-  } else if (fabs(dvdx3) < 1.0e-8) {
+  } else if (fabs(dvdx3) < 1.0e-8 || isnan(dvdx3)) {
     dvdx3 = 1.0e-8;
-  }
-
-  // To catch small gradient values.
-  MAX(dvdx1, 1.0e-8);
-  MAX(dvdx2, 1.0e-8);
-  MAX(dvdx3, 1.0e-8);
-
-  if (mark == 1) {
-    printf("dvdx1=%e, x1=%e \n", dvdx1, x1[i]);
   }
 
   gradV[0] = dvdx1;
@@ -592,15 +575,6 @@ double FiniteDiskCorrection(double *gradV, double vx1, double x1, double alpha)
   }else{
     f = 1.0;
   }
-
-  if (isnan(f)) {
-    printf("f=%e \n", f);
-  }
-
-  //nu2_c = 1.0 - 1.0/(x1*x1);
-  //sigma = x1/fabs(vx1)*(gradV[0]) - 1.0; 
-  //f = ((pow(1.0 + sigma, 1.0 + alpha) - pow(1.0 + sigma*nu2_c, 1.0 + alpha))/
-  //    ((1.0 + alpha)*(1.0 - nu2_c)*sigma*pow(1.0 + sigma, alpha)));  
 
   return f;
 }
@@ -745,8 +719,8 @@ void InitMagneticField(double *magnetic_field,
  *********************************************************************** */
 {
 
-  double x, y, z, xp, yp, zp, r, theta, Rcgs, omega;
-  double br, btheta, bphi, bx, by, bz,  bxp, byp, bzp, rp, rp2;
+  double x, y, z, xp, yp, zp, r;
+  double br, btheta, bphi, bx, by, bz, bxp, byp, bzp, rp, rp2;
   double a11, a12, a13, a21, a22, a23, a31, a32, a33;
 
   star1.Bfield_angle *= 0.0174532925;
