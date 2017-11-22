@@ -98,6 +98,8 @@ void InitStar1(Star *star1)
                          (1.0 - star1->alpha)/star1->alpha)
                     *pow(1.0 + star1->alpha, -1.0/star1->alpha);
 
+  star1->mean_mol = g_inputParam[Mean_mol_waight];
+
   star1->sound_speed = sqrt(UNIT_kB*star1->temperature
     /(star1->mean_mol*(CONST_AH/UNIT_MASS)*CONST_amu));
 
@@ -116,8 +118,6 @@ void InitStar1(Star *star1)
   star1->gravity = -UNIT_G*star1->mass*(1.0 - star1->Eddington);
 
   star1->rotational_velocity = g_inputParam[Rotation]*sqrt(UNIT_G*star1->mass);
-
-  star1->mean_mol = g_inputParam[Mean_mol_waight];
 
   star1->Bfield_angle = g_inputParam[Magnetic_incl];
 
@@ -610,15 +610,11 @@ void AccelVectorRadial(double *gline, const Data *d, double f, double x1,
   A = 1.0/(1.0 - star1.alpha)*ke*star1.luminosity
         *star1.q_fac/(4.0*CONST_PI*UNIT_c);
 
-  if (isnan(gradV[0])) {
-    printf("gradV[0]=%e, \n", gradV[0]);
-  }
-
   gline[0] = f*A*pow(x1, -2)*pow(gradV[0]/B, star1.alpha);
 
-  if (isnan(gradV[0])) {
+  //if (isnan(gradV[0])) {
     gline[0] = 0.0;
-  }
+  //}
 
 #if EOS == IDEAL
   // Accounting for total ionisation at high temp 
@@ -630,6 +626,16 @@ void AccelVectorRadial(double *gline, const Data *d, double f, double x1,
 
   gline[1] = 0.0;
   gline[2] = 0.0;
+
+  if (isnan(d->Vc[RHO][k][j][i]) || isnan(d->Vc[PRS][k][j][i]) || isnan(d->Vc[VX1][k][j][i]) || isnan(d->Vc[VX2][k][j][i]) || isnan(d->Vc[VX3][k][j][i])) {
+    printf("d->Vc[RHO][k][j][i]=%e \n", d->Vc[RHO][k][j][i]);
+    printf("d->Vc[PRS][k][j][i]=%e \n", d->Vc[PRS][k][j][i]);
+    printf("d->Vc[VX1][k][j][i]=%e \n", d->Vc[VX1][k][j][i]);
+    printf("d->Vc[VX2][k][j][i]=%e \n", d->Vc[VX2][k][j][i]);
+    printf("d->Vc[VX3][k][j][i]=%e \n", d->Vc[VX3][k][j][i]);
+    printf("gradV[0]=%e \n", gradV[0]);
+    printf("gline[0]=%e \n", gline[0]);
+  }
 
   return;
 }
