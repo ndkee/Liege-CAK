@@ -6,7 +6,7 @@
 
 pluto:                              # Default target
 
-ARCH         = Darwin.gcc.defs
+ARCH         = Linux.mpicc.defs
 PLUTO_DIR    = /Users/simon/Work/Code/Liege-CAK/Pluto
 SRC          = $(PLUTO_DIR)/Src
 INCLUDE_DIRS = -I. -I$(SRC)

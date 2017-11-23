@@ -142,7 +142,8 @@ void UpdateStage(const Data *d, Data_Arr UU, double **aflux,
         state.flag[*ip] = d->flag[k][j][i];
 
         #if CAK == YES
-          for(int gnvar=0; gnvar<COMPONENTS; gnvar++){
+          int gnvar;
+          for(gnvar=0; gnvar<COMPONENTS; gnvar++){
             state.gl[(*ip)][gnvar] = d->gL[gnvar][k][j][i];
           }
         #endif
