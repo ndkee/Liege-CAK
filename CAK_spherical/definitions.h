@@ -3,7 +3,7 @@
 #define  COMPONENTS              3
 #define  GEOMETRY                SPHERICAL
 #define  BODY_FORCE              VECTOR
-#define  COOLING                 TABULATED
+#define  COOLING                 NO
 #define  RECONSTRUCTION          LINEAR
 #define  TIME_STEPPING           RK2
 #define  DIMENSIONAL_SPLITTING   NO
@@ -52,7 +52,7 @@
 #define  tday                    8.64e+4
 #define  L_sun                   3.846e+33
 #define  VTK_VECTOR_DUMP         YES
-#define  GLM_EXTENDED            NO
+#define  GLM_EXTENDED            YES
 #define  CAK                     YES
 #define  CHOMBO_LOGR             YES
 #define  CHOMBO_CONS_AM          NO

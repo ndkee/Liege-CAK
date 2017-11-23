@@ -92,11 +92,14 @@ void InitStar1(Star *star1)
 
   star1->q_fac = g_inputParam[Q_factor];
 
-  star1->mass_loss = star1->luminosity/(UNIT_c*UNIT_c)*star1->alpha/(1.0 - star1->alpha)
+  star1->mass_loss = star1->luminosity/(UNIT_c*UNIT_c)*
+                      star1->alpha/(1.0 - star1->alpha)
                     *pow(star1->q_fac*star1->Eddington
                          /(1.0 - star1->Eddington), 
                          (1.0 - star1->alpha)/star1->alpha)
                     *pow(1.0 + star1->alpha, -1.0/star1->alpha);
+
+  star1->mean_mol = g_inputParam[Mean_mol_waight];
 
   star1->sound_speed = sqrt(UNIT_kB*star1->temperature
     /(star1->mean_mol*(CONST_AH/UNIT_MASS)*CONST_amu));
@@ -116,8 +119,6 @@ void InitStar1(Star *star1)
   star1->gravity = -UNIT_G*star1->mass*(1.0 - star1->Eddington);
 
   star1->rotational_velocity = g_inputParam[Rotation]*sqrt(UNIT_G*star1->mass);
-
-  star1->mean_mol = g_inputParam[Mean_mol_waight];
 
   star1->Bfield_angle = g_inputParam[Magnetic_incl];
 
@@ -370,8 +371,10 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
     DOM_LOOP(k,j,i){
       CAKAcceleration(d, grid, star1, i, j, k);
 #if EOS == IDEAL
-      if (d->Vc[PRS][k][j][i] < (rho[k][j][i])*star1.temperature/(KELVIN*star1.mean_mol)){
-        d->Vc[PRS][k][j][i] = (rho[k][j][i])*star1.temperature/(KELVIN*star1.mean_mol);
+      if (d->Vc[PRS][k][j][i] < (rho[k][j][i])*star1.temperature
+                                 /(KELVIN*star1.mean_mol)){
+        d->Vc[PRS][k][j][i] = (rho[k][j][i])*star1.temperature
+                               /(KELVIN*star1.mean_mol);
       }
 #endif
     }
@@ -515,6 +518,11 @@ void VelocityGradientVector(const Data *d, double *x1, double *x2, double *x3,
   dvdx2 = 0.0;
   dvdx3 = 0.0;
 
+  dvdx1 = fmax(dvdx1, 1.0e-8);
+  dvdx2 = fmax(dvdx2, 1.0e-8);
+  dvdx3 = fmax(dvdx3, 1.0e-8);
+
+/*
   if (fabs(dvdx1) < 1.0e-8 || isnan(dvdx1)) {
     dvdx1 = 1.0e-8;
   } else if (fabs(dvdx2) < 1.0e-8 || isnan(dvdx2)) {
@@ -522,16 +530,10 @@ void VelocityGradientVector(const Data *d, double *x1, double *x2, double *x3,
   } else if (fabs(dvdx3) < 1.0e-8 || isnan(dvdx3)) {
     dvdx3 = 1.0e-8;
   }
-
+*/
   gradV[0] = dvdx1;
   gradV[1] = dvdx2;
   gradV[2] = dvdx3;
-
-  //if (isnan(gradV[0])){
-  //  printf("x1=%e, gradV[0]=%e \n", x1[i], gradV[0]);
-  //  printf("dxi=%e, dxim1=%e, dvdx1=%e, VX1[i-1]=%e, VX1[i+1]=%e, \n", 
-  //         dxim1, dxim1, dvdx1, d->Vc[VX1][k][j][i-1], d->Vc[VX1][k][j][i+1]);
-  //}
 
   return;
 }
@@ -683,11 +685,6 @@ void AccelVectorNonRadial(double *gline, const Data *d, double f, double x1,
   g_mag *= exp(-4.0*log(2.0)*pow((2.0 - temp/star1.temperature 
              - star1.temperature/temp), 2));
 #endif
-
-  if (isnan(gradV[0])) {
-    printf("gradV[0]=%e, gradV_mag=%e, g_mag=%e unit_vec[0]=%e, unit_vec[1]=%e, unit_vec[2]=%e \n", gradV[0], gradV_mag, g_mag, unit_vec[0], unit_vec[1], unit_vec[2]);
-
-  }
 
   gline[0] = g_mag*unit_vec[0];
   gline[1] = g_mag*unit_vec[1];
