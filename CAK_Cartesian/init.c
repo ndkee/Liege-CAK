@@ -360,7 +360,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 
   double vrI[2], vr, gL;
   double dx, dy, dz, dr2_grid, dr_grid, dvdr;
-  double ke, B, A, a, nu2_c, sigma, f;
+  double ke, B, A, a, nu2_c, sigma, f, temp;
 
 
 
@@ -426,7 +426,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
                                 /(KELVIN*star1.mean_mol);
 #endif
 
-/*
+
         dr2 = EXPAND(dx1[i]*dx1[i], + dx2[j]*dx2[j], + dx3[k]*dx3[k]);
         dr = sqrt(dr2);
         ddr = 0.9*dr;
@@ -440,9 +440,9 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         } else {
           velocity = 0.0;
         }
-*/
 
-        velocity = star1.sound_speed/star1.surface_rho_param;
+
+        //velocity = star1.sound_speed/star1.surface_rho_param;
         D_EXPAND(d->Vc[VX1][k][j][i] = velocity*x1[i]/r;,
                  d->Vc[VX2][k][j][i] = velocity*x2[j]/r;,
                  d->Vc[VX3][k][j][i] = velocity*x3[k]/r;)
@@ -464,125 +464,18 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 
       }
 
-#if CAK == YES
-    // - Radiative diriving calculation.
-
-    if (r > 1.0){
-
-      // - Determine infinitesimal radial distance dr
-      //dr2  = EXPAND(dx1[i]*dx1[i],+dx2[j]*dx2[j],+dx3[k]*dx3[k]);
-      //dr   = sqrt(dr2);
-
-      dx = x1[i+1] - x1[i];
-      dy = x2[j+1] - x2[j];
-      dz = x3[k+1] - x3[k];
-      dr2  = EXPAND(dx*dx,+dy*dy,+dz*dz);
-      dr   = sqrt(dr2);
-      dr2_grid  = EXPAND(dx1[i]*dx1[i],+dx2[j]*dx2[j],+dx3[k]*dx3[k]);
-      dr_grid   = sqrt(dr2);
-      ddr = 0.9*dr;
-
-
-      //printf("dx=%e, dy=%e, dz=%e, dx1[i]=%e, dx2[j]=%e, dx3[k]=%e, dr=%e, dr_grid=%e \n", dx, dy, dz, dx1[i], dx2[j], dx3[k], dr, dr_grid);
-
-      // - Get interpolated velocity values
-      #if DIMENSIONS == 2
-      vrI[0] = TwoDimensionalInterp(d, box, grid, i, j, k, x1, x2, r, -ddr);
-      vrI[1] = TwoDimensionalInterp(d, box, grid, i, j, k, x1, x2, r, ddr);
-      #endif
-
-      #if DIMENSIONS == 3
-      vrI[0] = ThreeDimensionalInterp(d, box, grid, i, j, k, x1, x2, x3, r, -ddr);
-      vrI[1] = ThreeDimensionalInterp(d, box, grid, i, j, k, x1, x2, x3, r, ddr);
-      #endif
-
-      ke = 4.0*CONST_PI*UNIT_G*star1.mass*UNIT_c
-            *star1.Eddington/star1.luminosity;
-
-      B = d->Vc[RHO][k][j][i]*star1.q_fac*UNIT_c*ke;
-
-      A = 1.0/(1.0 - star1.alpha)*ke*star1.luminosity
-          *star1.q_fac/(4.0*CONST_PI*UNIT_c);
-
-      vr = EXPAND(d->Vc[VX1][k][j][i]*x1[i]/r, 
-                  + d->Vc[VX2][k][j][i]*x2[j]/r, 
-                  + d->Vc[VX3][k][j][i]*x3[k]/r);
-      P00 = vrI[0];
-      P11 = vr;
-      P22 = vrI[1];
-      P01 = (0.5*ddr*P00 + 0.5*ddr*P11)/ddr;
-      P12 = (0.5*ddr*P11 + 0.5*ddr*P22)/ddr;
-      dvdr = fabs((1.0/12.0)*P00 - (2.0/3.0)*P01 + (2.0/3.0)*P12 - (1.0/12.0)*P22)/(0.5*ddr);
-
-      dvdr = fmax(dvdr, 1.0e-8);
-
-      //printf("P00=%e, P01=%e, P11=%e, P12=%e, P22=%e \n", P00, P01, P11, P12, P22);
-
-      //dvdr = VelocityGradientVectorCartesian(d, box, grid, x1, x2, x3, i, j, k);
-
-      a = star1.alpha;
-      nu2_c = (1.0-(1.0/(r*r)));
-      sigma = (r/fabs(vr))*(dvdr)-1.0;
-      f     = ((pow(1.0+sigma,1.0+a)-pow(1.0+sigma*nu2_c,1.0+a))/((1.0+a)*(1.0-nu2_c)*sigma*pow(1.0+sigma,a)));
-
-      vr = EXPAND(d->Vc[VX1][k][j][i]*x1[i]/r, 
-                 + d->Vc[VX2][k][j][i]*x2[j]/r, 
-                 + d->Vc[VX3][k][j][i]*x3[k]/r);
-
-      //f = FiniteDiskCorrection(dvdr, vr, r, star1.alpha);
-
-      //printf("gL=%e, dvdr=%e, sigma=%e, nu2_c=%e, f=%e, a=%e \n", gL, dvdr, sigma, nu2_c, f, a);
-      //printf("ke=%e, B=%e, A=%e, nu2_c=%e, f=%e, a=%e \n", gL, dvdr, sigma, nu2_c, f, a);
-
-      //gL = AccelVectorRadial(d, grid, f, dvdr, star1, i, j, k);
-
-      gL = fabs(f*A*pow(r,-2)*pow(dvdr/B,a));
-
-      //printf("gL=%e \n", gL);
-
-      // This set of if statements checks and excludes 
-      // the ghost zones from being accelerated. Basically
-      // stops strangeness from happening.
-      #if AMR_ON == YES
-      #if DIMENSIONS == 3
-      if (i < 4 || j < 4 || k < 4) {
-        gL = 0.0;
-      } else if (i > IEND-3 || j > JEND-3 || k > KEND-3){
-        gL = 0.0;
-      }
-      #endif
-      #if DIMENSIONS == 2
-      if (i < 4 || j < 4) {
-        gL = 0.0;
-      } else if (i > IEND-3 || j > JEND-3){
-        gL = 0.0;
-      }
-      #endif
-      #endif
-
-      //if (isnan(gL)) {
-      //  printf("gL = %e \n", gL);
-      //}
-
-      EXPAND(gLx1[k][j][i] = gL*x1[i]/r;,
-             gLx2[k][j][i] = gL*x2[j]/r;,
-             gLx3[k][j][i] = gL*x3[k]/r;)
-
-    } // end of if r > R_star.
-
-#endif
-
-#if CAK == YES
-      //CAKAcceleration(d, box, grid, star1, i, j, k);
-#endif
-
 #if EOS == IDEAL
+      // Need to set the temp floor before calculating the CAK accel.
       if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star1.temperature
                                  /(KELVIN*star1.mean_mol)){
         d->Vc[PRS][k][j][i] = (d->Vc[RHO][k][j][i])*star1.temperature
                                  /(KELVIN*star1.mean_mol);
       }
 #endif
+#if CAK == YES
+      CAKAcceleration(d, box, grid, star1, i, j, k);
+#endif
+
       
 
     }
@@ -823,10 +716,8 @@ double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, dou
   P01 = (0.5*ddr*P00 + 0.5*ddr*P11)/ddr;
   P12 = (0.5*ddr*P11 + 0.5*ddr*P22)/ddr;
 
-  //printf("P00=%e, P01=%e, P11=%e, P12=%e, P22=%e \n", P00, P01, P11, P12, P22);
-
-  dvdr = fabs((1.0/12.0)*P00 - (2.0/3.0)*P01 + (2.0/3.0)*P12 - (1.0/12.0)*P22)/(0.5*ddr);
-
+  dvdr = fabs((1.0/12.0)*P00 - (2.0/3.0)*P01 
+           + (2.0/3.0)*P12 - (1.0/12.0)*P22)/(0.5*ddr);
   dvdr = fmax(dvdr, 1.0e-8);
 
   return dvdr;
@@ -893,7 +784,7 @@ double AccelVectorRadial(const Data *d, Grid *grid,
  *
  * \return void
  *
- * \TODO None
+ * \TODO 
  *********************************************************************** */
 {
 
@@ -902,7 +793,7 @@ double AccelVectorRadial(const Data *d, Grid *grid,
   double *x2 = grid[JDIR].x;
   double *x3 = grid[KDIR].x;
   double r=0.0, r2=0.0;
-  double gline=0.0;
+  double gline=0.0, factor=0.0;
 
   ke = 4.0*CONST_PI*UNIT_G*star1.mass*UNIT_c
          *star1.Eddington/star1.luminosity;
@@ -921,13 +812,23 @@ double AccelVectorRadial(const Data *d, Grid *grid,
   // Accounting for total ionisation at high temp 
   // and for recombination at low temp.
   temp = d->Vc[PRS][k][j][i]*KELVIN*star1.mean_mol/d->Vc[RHO][k][j][i];
-  gline *= exp(-4.0*log(2.0)*pow((2.0 - temp/star1.temperature 
-                        - star1.temperature/temp), 2));
+  factor = exp(-4.0*log(2.0)*pow((2.0 
+             - temp/star1.temperature - star1.temperature/temp), 2));
+
+  factor = fmax(factor, 1.0e-8);
+
+  //if (factor < 0.8){
+  //  printf("temp=%e, gline=%e, fac=%e, gline*fac=%e, r=%e \n", temp, gline, factor, gline*factor, r);
+  //}
+
+  //gline *= factor;
+
 #endif
 
   /* This set of if statements checks and excludes 
      the ghost zones from being accelerated. Basically
      stops strangeness from happening. */
+/*
 #if AMR_ON == YES
 #if DIMENSIONS == 3
   if (i < 4 || j < 4 || k < 4) {
@@ -944,6 +845,7 @@ double AccelVectorRadial(const Data *d, Grid *grid,
   }
 #endif
 #endif
+*/
 
   //print("gline=%e \n", gline);
 

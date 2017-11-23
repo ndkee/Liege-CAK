@@ -23,7 +23,7 @@ void Startup (Data *d, Grid *G)
  *********************************************************************** */
 {
   int i, j, k;
-  int isub, jsub, ksub, nsub = 5;
+  int isub, jsub, ksub, nsub = 20;
   int nv,  l_convert;
   static double **ucons, **uprim;
   double x1,  x2,  x3;
