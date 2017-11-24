@@ -330,16 +330,14 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
  *
  * \return  This function has no return value.
  *
- * TODO None
+ * TODO Impliment dynamic boundary conditions.
  *********************************************************************** */
 {        
 
-  int i, j, k, ghost;
+  int i, j, k;
 
-  //double vradial, vtheta, vphi;
-  double P00, P01, P11, P12, P22;
   double r, r2;
-  double dr2, dr, ddr;
+  //double dr2, dr, ddr;
   double velocity;
 
 #if PHYSICS == MHD 
@@ -351,23 +349,15 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
   double *x1 = grid[IDIR].x;                                                  
   double *x2 = grid[JDIR].x;                                                  
   double *x3 = grid[KDIR].x;
-  double *dx1 = grid[IDIR].dx;
-  double *dx2 = grid[JDIR].dx;
-  double *dx3 = grid[KDIR].dx;
+  //double *dx1 = grid[IDIR].dx;
+  //double *dx2 = grid[JDIR].dx;
+  //double *dx3 = grid[KDIR].dx;
   double ***gLx1 = d->gL[0];
   double ***gLx2 = d->gL[1];
-  double ***gLx3 = d->gL[2];
-
-  double vrI[2], vr, gL;
-  double dx, dy, dz, dr2_grid, dr_grid, dvdr;
-  double ke, B, A, a, nu2_c, sigma, f, temp;
-
-
+  double ***gLx3 = d->gL[2];;
 
   Star star1;
   InitStar1(&star1);
-
-  ghost = (NX1_TOT - NX1)/2;
 
   if(g_stepNumber < 2){
     double Bcgs = star1.Bfield*UNIT_B;
@@ -426,11 +416,11 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
                                 /(KELVIN*star1.mean_mol);
 #endif
 
-
+/*
         dr2 = EXPAND(dx1[i]*dx1[i], + dx2[j]*dx2[j], + dx3[k]*dx3[k]);
         dr = sqrt(dr2);
         ddr = 0.9*dr;
-        if (r < star1.radius && r + 5.0*ddr > star1.radius) {
+        if (r < star1.radius && r + 5.0*ddr > star1.radius ) {
 #if DIMENSIONS == 2
           velocity = TwoDimensionalInterp(d, box, grid, i, j, k, x1, x2, r, dr);
 #endif
@@ -440,9 +430,9 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         } else {
           velocity = 0.0;
         }
+*/
 
-
-        //velocity = star1.sound_speed/star1.surface_rho_param;
+        velocity = star1.sound_speed/star1.surface_rho_param;
         D_EXPAND(d->Vc[VX1][k][j][i] = velocity*x1[i]/r;,
                  d->Vc[VX2][k][j][i] = velocity*x2[j]/r;,
                  d->Vc[VX3][k][j][i] = velocity*x3[k]/r;)
@@ -680,7 +670,11 @@ double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, dou
  *********************************************************************** */
 {
 
-  double dx=0.0, dy=0.0, dz=0.0;
+  double *dx1 = grid[IDIR].dx;
+  double *dx2 = grid[JDIR].dx;
+  double *dx3 = grid[KDIR].dx;
+
+  //double dx=0.0, dy=0.0, dz=0.0;
   double dr2=0.0, dr=0.0, ddr=0.0;
   double vrI[2], vr=0.0, dvdr=0.0;
   double r=0.0, r2=0.0;
@@ -689,10 +683,11 @@ double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, dou
   r2  = EXPAND(x1[i]*x1[i],+x2[j]*x2[j],+x3[k]*x3[k]);
   r   = sqrt(r2);
 
-  dx = x1[i+1] - x1[i];
-  dy = x2[j+1] - x2[j];
-  dz = x3[k+1] - x3[k];
-  dr2  = EXPAND(dx*dx, + dy*dy, + dz*dz);
+  //dx = x1[i+1] - x1[i];
+  //dy = x2[j+1] - x2[j];
+  //dz = x3[k+1] - x3[k];
+  //dr2  = EXPAND(dx*dx, + dy*dy, + dz*dz);
+  dr2  = EXPAND(dx1[i]*dx1[i], + dx2[j]*dx2[j], + dx3[k]*dx3[k]);
   dr   = sqrt(dr2);
   ddr = 0.9*dr;
 
@@ -701,7 +696,6 @@ double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, dou
   vrI[0] = TwoDimensionalInterp(d, box, grid, i, j, k, x1, x2, r, -ddr);
   vrI[1] = TwoDimensionalInterp(d, box, grid, i, j, k, x1, x2, r, ddr);
   #endif
-
   #if DIMENSIONS == 3
   vrI[0] = ThreeDimensionalInterp(d, box, grid, i, j, k, x1, x2, x3, r, -ddr);
   vrI[1] = ThreeDimensionalInterp(d, box, grid, i, j, k, x1, x2, x3, r, ddr);
@@ -814,39 +808,31 @@ double AccelVectorRadial(const Data *d, Grid *grid,
   temp = d->Vc[PRS][k][j][i]*KELVIN*star1.mean_mol/d->Vc[RHO][k][j][i];
   factor = exp(-4.0*log(2.0)*pow((2.0 
              - temp/star1.temperature - star1.temperature/temp), 2));
-
   factor = fmax(factor, 1.0e-8);
-
-  //if (factor < 0.8){
-  //  printf("temp=%e, gline=%e, fac=%e, gline*fac=%e, r=%e \n", temp, gline, factor, gline*factor, r);
-  //}
-
   //gline *= factor;
-
 #endif
 
   /* This set of if statements checks and excludes 
      the ghost zones from being accelerated. Basically
      stops strangeness from happening. */
 /*
-#if AMR_ON == YES
 #if DIMENSIONS == 3
-  if (i < 4 || j < 4 || k < 4) {
+  if (i < 2 || j < 2 || k < 2) {
     gline = 0.0;
-  } else if (i > IEND-3 || j > JEND-3 || k > KEND-3){
+  }
+  if (i > NX1+1 || j > NX2+1 || k > NX3+1){
     gline = 0.0;
   }
 #endif
 #if DIMENSIONS == 2
-  if (i < 4 || j < 4) {
+  if (i < 2 || j < 2) {
     gline = 0.0;
-  } else if (i > IEND-3 || j > JEND-3){
+  }
+  if (i > NX1+1 || j > NX2+1){
     gline = 0.0;
   }
 #endif
-#endif
 */
-
   //print("gline=%e \n", gline);
 
   return gline;
@@ -1169,25 +1155,36 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
                             int i, int j, int k, 
                             double *x1, double *x2, double *x3, 
                             double r, double ddr)
+/*!
+ * Calculate the velocity at the interpolation point in 3D..
+ *
+ * \param [out]  vI  Interpolated velocity.
+ *
+ * return vI 
+ *
+ * \TODO incoperate ddr calculation in each if statment so that the 
+ *       stretched grids can be done properly. 
+ *
+ *       For AMR, dx1 = grid[IDIR].dx etc.. can be used.
+ *********************************************************************** */
 {
-  int u, s;
-  double Ntot;
-  double vrI;
+  int u=0, s=0, tag_if=-1, miss_tag=0;
+  double Ntot=0.0;
+  double vrI=0.0;
   double vI[3];
   double N[8];
   double V[3][8];
-  double xa, xb;
-  double ya, yb;
-  double za, zb;
+  double xa=0.0, xb=0.0;
+  double ya=0.0, yb=0.0;
+  double za=0.0, zb=0.0;
   double phi = atan2(x2[j],x1[i]);
   double theta = acos(x3[k]/r);
   double xI = (r+ddr)*sin(theta)*cos(phi);
   double yI = (r+ddr)*sin(theta)*sin(phi);
   double zI = (r+ddr)*cos(theta);
-  int tag_if;
 
   if (xI > x1[i] && yI > x2[j] && zI > x3[k]){
-    tag_if = 1;
+    tag_if = 0;
     xa = x1[i]; xb = x1[i+1];
     ya = x2[j]; yb = x2[j+1];
     za = x3[k]; zb = x3[k+1];
@@ -1202,8 +1199,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][7] = d->Vc[u][k+1][j+1][i+1];
     }
   }
-  if (xI < x1[i] && yI > x2[j] && zI > x3[k]){
-    tag_if = 2;
+  else if (xI < x1[i] && yI > x2[j] && zI > x3[k]){
+    tag_if = 1;
     xa = x1[i-1]; xb = x1[i];
     ya = x2[j]; yb = x2[j+1];
     za = x3[k]; zb = x3[k+1];
@@ -1218,8 +1215,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][7] = d->Vc[u][k+1][j+1][i];
     }
   }
-  if (xI > x1[i] && yI < x2[j] && zI > x3[k]){
-    tag_if = 3;
+  else if (xI > x1[i] && yI < x2[j] && zI > x3[k]){
+    tag_if = 2;
     xa = x1[i]; xb = x1[i+1];
     ya = x2[j-1]; yb = x2[j];
     za = x3[k]; zb = x3[k+1];
@@ -1234,8 +1231,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][7] = d->Vc[u][k+1][j][i+1];
     }
   }
-  if (xI < x1[i] && yI < x2[j] && zI > x3[k]){
-    tag_if = 4;
+  else if (xI < x1[i] && yI < x2[j] && zI > x3[k]){
+    tag_if = 3;
     xa = x1[i-1]; xb = x1[i];
     ya = x2[j-1]; yb = x2[j];
     za = x3[k]; zb = x3[k+1];
@@ -1252,8 +1249,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
   }
 
   // zI < zP 
-  if (xI > x1[i] && yI > x2[j] && zI < x3[k]){
-    tag_if = 5;
+  else if (xI > x1[i] && yI > x2[j] && zI < x3[k]){
+    tag_if = 4;
     xa = x1[i]; xb = x1[i+1];
     ya = x2[j]; yb = x2[j+1];
     za = x3[k-1]; zb = x3[k];
@@ -1268,8 +1265,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][7] = d->Vc[u][k][j+1][i+1];
     }
   }
-  if (xI < x1[i] && yI > x2[j] && zI < x3[k]){
-    tag_if = 6;
+  else if (xI < x1[i] && yI > x2[j] && zI < x3[k]){
+    tag_if = 5;
     xa = x1[i-1]; xb = x1[i];
     ya = x2[j]; yb = x2[j+1];
     za = x3[k-1]; zb = x3[k];
@@ -1284,8 +1281,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][7] = d->Vc[u][k][j+1][i];
     }
   }
-  if (xI > x2[i] && yI < x2[j] && zI < x3[k]){
-    tag_if = 7;
+  else if (xI > x1[i] && yI < x2[j] && zI < x3[k]){
+    tag_if = 6;
     xa = x1[i]; xb = x1[i+1];
     ya = x2[j-1]; yb = x2[j];
     za = x3[k-1]; zb = x3[k];
@@ -1300,8 +1297,8 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][7] = d->Vc[u][k][j][i+1];
     }
   }
-  if (xI < x1[i] && yI < x2[j] && zI < x3[k]){
-    tag_if = 8;
+  else if (xI < x1[i] && yI < x2[j] && zI < x3[k]){
+    tag_if = 7;
     xa = x1[i-1]; xb = x1[i];
     ya = x2[j-1]; yb = x2[j];
     za = x3[k-1]; zb = x3[k];
@@ -1315,6 +1312,19 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
       V[u-1][6] = d->Vc[u][k][j][i-1];
       V[u-1][7] = d->Vc[u][k][j][i];
     }
+  }
+  else {
+    printf("Error in 3D interpolation: \n");
+    printf("interpolation point outside of brackets. \n");
+    printf("Quadrent: %i \n",tag_if);
+    printf("NX1=%li, NX2=%li, NX3=%li \n", NX1, NX2, NX3);
+    printf("NX1_TOT=%li, NX2_TOT=%li, NX3_TOT=%li \n", NX1_TOT, NX2_TOT, NX3_TOT);
+    printf("i=%i, j=%i, k=%i \n", i, j, k);
+    printf("x1m=%f x1=%f, x1p=%f, xI=%f \n", x1[i-1], x1[i], x1[i+1], xI);
+    printf("x2m=%f x2=%f, x2p=%f, yI=%f \n", x2[j-1], x2[j], x2[j+1], yI);
+    printf("x3m=%f x3=%f, x3p=%f, zI=%f \n", x3[k-1], x3[k], x3[k+1], zI);
+    printf("r=%f, ddr=%f \n", r, ddr);
+    miss_tag = 1;
   }
 
   // Find total volume.
@@ -1363,10 +1373,11 @@ double ThreeDimensionalInterp(const Data *d, RBox *box, Grid *grid,
   }
   vrI = (vI[0]*x1[i] + vI[1]*x2[j] + vI[2]*x3[k])/r;
 
-  if(isnan(vrI)){
-    printf("tag_if=%i \n",tag_if);
-    printf("vrI=%f, vI[0]=%f, vI[1]=%f, vI[2]=%f Ntot=%f \n",vrI,vI[0],vI[1],vI[2],Ntot);
-    printf("N0=%f, N1=%f, N2=%f, N3=%f, N4=%f, N5=%f, N6=%f, N7=%f \n",N[0], N[1], N[2], N[3], N[4], N[5], N[6], N[7]);
+  if(isnan(vrI) || miss_tag == 1){
+    printf("vrI=%f, vI[0]=%f, vI[1]=%f, vI[2]=%f Ntot=%f \n", 
+            vrI, vI[0], vI[1], vI[2], Ntot);
+    printf("N0=%f, N1=%f, N2=%f, N3=%f, N4=%f, N5=%f, N6=%f, N7=%f \n", 
+            N[0], N[1], N[2], N[3], N[4], N[5], N[6], N[7]);
     printf("xa=%f, xI=%f, xb=%f \n", xa, xI, xb);
     printf("ya=%f, yI=%f, yb=%f \n", ya, yI, yb);
     printf("za=%f, zI=%f, zb=%f \n", za, zI, zb);
@@ -1385,8 +1396,8 @@ double VelocityStellarSurface2D(const Data *d, RBox *box, Grid *grid,
 {
 
   int l;
-  double r_testx, r_testy, vel_mag;
-  double dx, dy, dz, dr2, dr, ddr;
+  double r_testx=0.0, r_testy=0.0, vel_mag=0.0;
+  double dx=0.0, dy=0.0, dz=0.0, dr2=0.0, dr=0.0, ddr=0.0;
 
   dx = x1[i+1] - x1[i];
   dy = x2[j+1] - x2[j];
@@ -1517,6 +1528,9 @@ double VelocityStellarSurface2D(const Data *d, RBox *box, Grid *grid,
         vel_mag = sqrt(vel_x1*vel_x1 + vel_x2*vel_x2);
       }
 */
+    } 
+    else {
+      vel_mag = 0.0;
     }
   }
 
@@ -1532,9 +1546,9 @@ double VelocityStellarSurface3D(const Data *d, RBox *box, Grid *grid,
                                 double r)
 {
 
-  int l;
-  double r_testx, r_testy, r_testz, vel_mag;
-  double dx, dy, dz, dr2, dr, ddr;
+  int l=0;
+  double r_testx=0.0, r_testy=0.0, r_testz=0.0, vel_mag=0.0;
+  double dx=0.0, dy=0.0, dz=0.0, dr2=0.0, dr=0.0, ddr=0.0;
 
   dx = x1[i+1] - x1[i];
   dy = x2[j+1] - x2[j];
@@ -1633,6 +1647,9 @@ double VelocityStellarSurface3D(const Data *d, RBox *box, Grid *grid,
       if (r < 1.0 && (r_testx > 1.0 || r_testy > 1.0 || r_testz > 1.0)) {
         vel_mag = ThreeDimensionalInterp(d, box, grid, i, j, k, x1, x2, x3, r, ddr);
       }
+    } 
+    else {
+      vel_mag = 0.0;
     }
   }
   return vel_mag;

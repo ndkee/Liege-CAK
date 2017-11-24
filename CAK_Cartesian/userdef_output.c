@@ -26,9 +26,6 @@ void ComputeUserVar (const Data *d, Grid *grid)
   gline2 = GetUserVar("gline2");
   gline3 = GetUserVar("gline3");
 
- /* - Distance from star - */
-  r2 = EXPAND(x1[i]*x1[i], + x2[j]*x2[j], + x3[k]*x3[k]);
-  r = sqrt(r2);
 
   /* - Gravity outside bodies - */
  
@@ -36,9 +33,13 @@ void ComputeUserVar (const Data *d, Grid *grid)
 
     gline1[k][j][i] = d->gL[0][k][j][i];
     gline2[k][j][i] = d->gL[1][k][j][i];
-    gline3[k][j][i] = 0.0;//d->gL[2][k][j][i];
+    gline3[k][j][i] = d->gL[2][k][j][i];
 
-    grav[k][j][i] = (g_inputParam[M_star]*CONST_Msun/UNIT_MASS)/r/r/r; 
+    /* - Distance from star - */
+    r2 = EXPAND(x1[i]*x1[i], + x2[j]*x2[j], + x3[k]*x3[k]);
+    r = sqrt(r2);
+
+    grav[k][j][i] = (g_inputParam[M_star]*CONST_Msun/UNIT_MASS)/r/r; 
 
  
   }
