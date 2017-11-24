@@ -6,8 +6,8 @@
 
 pluto:                              # Default target
 
-ARCH         = Darwin.gcc.defs
-PLUTO_DIR    = /Users/simon/Work/Code/Liege-CAK/Pluto
+ARCH         = Linux.mpicc.defs
+PLUTO_DIR    = /data0/sdaley/Code/Liege-CAK/Pluto
 SRC          = $(PLUTO_DIR)/Src
 INCLUDE_DIRS = -I. -I$(SRC)
 VPATH        = ./:$(SRC)/New:$(SRC):$(SRC)/Time_Stepping:$(SRC)/States
