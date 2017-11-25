@@ -1,0 +1,12 @@
+USER           = sdaley
+WORKING_DIR    = /data0/sdaley/Code/Liege-CAK/CAK_Cartesian_Binary
+SYSTEM_NAME    = Linux
+NODE_NAME      = haumea
+RELEASE        = 3.16.0-4-amd64
+ARCH           = x86_64
+BYTE_ORDER     = little
+VERSION        = #1 SMP Debian 3.16.43-2 (2017-04-30)
+PLUTO_DIR      = /data0/sdaley/Programs/PLUTO
+PLUTO_VERSION  = "4.2"
+C_COMPILER     = gcc
+MPI_C_COMPILER = mpicc
