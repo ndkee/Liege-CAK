@@ -370,22 +370,60 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
  *********************************************************************** */
 {        
 
+  int i, j, k;
   double shift = 5.0;
   double *x1 = grid[IDIR].x;                                                  
 
+  Star star1;
+  InitStar1(&star1);
+  Star star2;
+  InitStar1(&star2);
+
   if(side == 0){
     DOM_LOOP(k,j,i){
+
+#if EOS == IDEAL
+      // Need to set this as the average of the two binaries, or the hotest!!
+      // Need to set the temp floor before calculating the CAK accel.
+      if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star1.temperature
+                                 /(KELVIN*star1.mean_mol)){
+        d->Vc[PRS][k][j][i] = (d->Vc[RHO][k][j][i])*star1.temperature
+                                 /(KELVIN*star1.mean_mol);
+      }
+#endif
  
       if (x1[i] < 0.0) {
-        Star star1;
-        InitStar1(&star1);
         BoundaryBinary(d, box, side, grid, star1, shift);
       }
       else if (x1[i] > 0.0) {
-        Star star2;
-        InitStar1(&star2);
         BoundaryBinary(d, box, side, grid, star2, -shift);
       }
+
+
+#if CAK == YES
+      gline = CAKAcceleration(d, box, grid, star1, i, j, k);
+      if (r < star1.radius) {
+        EXPAND(d->gL[0][k][j][i] = 0.0;,
+               d->gL[1][k][j][i] = 0.0;,
+               d->gL[2][k][j][i] = 0.0;)
+      }else {
+        EXPAND(d->gL[0][k][j][i] = gline*(x1[i] + shift)/r;,
+               d->gL[1][k][j][i] = gline*x2[j]/r;,
+               d->gL[2][k][j][i] = gline*x3[k]/r;)
+      }
+      gline = CAKAcceleration(d, box, grid, star2, i, j, k);
+      if (r < star2.radius) {
+        EXPAND(d->gL[0][k][j][i] = 0.0;,
+               d->gL[1][k][j][i] = 0.0;,
+               d->gL[2][k][j][i] = 0.0;)
+      }else {
+        EXPAND(d->gL[0][k][j][i] += gline*(x1[i] - shift)/r;,
+               d->gL[1][k][j][i] += gline*x2[j]/r;,
+               d->gL[2][k][j][i] += gline*x3[k]/r;)
+      }
+#endif
+
+
     }
   }
 
@@ -529,21 +567,6 @@ void BoundaryBinary(const Data *d, RBox *box,
 
       }
 
-#if EOS == IDEAL
-
-
-      // Need to set this as the average of the two binaries, or the hotest!!
-
-      // Need to set the temp floor before calculating the CAK accel.
-      if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star.temperature
-                                 /(KELVIN*star.mean_mol)){
-        d->Vc[PRS][k][j][i] = (d->Vc[RHO][k][j][i])*star.temperature
-                                 /(KELVIN*star.mean_mol);
-      }
-#endif
-#if CAK == YES
-      CAKAcceleration(d, box, grid, star, i, j, k);
-#endif
 
       
 
@@ -719,17 +742,8 @@ void CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, int i, in
 
   gline = AccelVectorRadial(d, grid, f, dvdr, star1, i, j, k);
 
-  if (r < star1.radius) {
-    EXPAND(d->gL[0][k][j][i] = 0.0;,
-           d->gL[1][k][j][i] = 0.0;,
-           d->gL[2][k][j][i] = 0.0;)
-  }else {
-    EXPAND(d->gL[0][k][j][i] = gline*x1[i]/r;,
-           d->gL[1][k][j][i] = gline*x2[j]/r;,
-           d->gL[2][k][j][i] = gline*x3[k]/r;)
-  }
 
-  return;
+  return  gline;
 }
 /* ********************************************************************* */
 

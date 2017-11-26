@@ -270,6 +270,7 @@ void Init (double *v, double x1, double x2, double x3)
 #endif
 #endif
 
+
   return;
 }                                                                          
 /* ********************************************************************* */
@@ -932,21 +933,17 @@ void InitMagneticField(double *magnetic_field,
 
   star1.Bfield_angle *= 0.0174532925;
 
-  // Convert to Cartesian.
-  x = x1;//x1*sin(x2)*cos(x3);
-  y = x2;//x1*sin(x2)*sin(x3);
-  z = x3;//x1*cos(x2);
-  r2 = EXPAND(x*x, + y*y, + z*z);
+  r2 = EXPAND(x1*x1, + x2*x2, + x3*x3);
   r = sqrt(r2);
 
-  // Rotate Cartesian coordiantes.
-  xp = x*cos(star1.Bfield_angle) - z*sin(star1.Bfield_angle);
-  yp = y;
-  zp = x*sin(star1.Bfield_angle) + z*cos(star1.Bfield_angle);
-  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
-  rp = sqrt(rp2);
 
 #if DIMENSIONS == 2	
+  // Rotate coordiantes.
+  xp = x1*cos(star1.Bfield_angle) - x2*sin(star1.Bfield_angle);
+  yp = x1*sin(star1.Bfield_angle) + x2*cos(star1.Bfield_angle);
+  zp = x2;
+  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
+  rp = sqrt(rp2);
   // Calculate b-field components in rotated frame.
   if (r <= 0.5*star1.radius) {
     bx = 0.0;
@@ -963,6 +960,12 @@ void InitMagneticField(double *magnetic_field,
   bzp = 0.0;
 #endif
 #if DIMENSIONS == 3
+  // Rotate coordiantes.
+  xp = x1*cos(star1.Bfield_angle) - x3*sin(star1.Bfield_angle);
+  yp = x2;
+  zp = x1*sin(star1.Bfield_angle) + x3*cos(star1.Bfield_angle);
+  rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
+  rp = sqrt(rp2);
   // Calculate b-field components in rotated frame.
   if (r <= 0.5*star1.radius) {
     bx = 0.0;
@@ -979,19 +982,9 @@ void InitMagneticField(double *magnetic_field,
   bzp = -bx*sin(star1.Bfield_angle) + bz*cos(star1.Bfield_angle);
 #endif
 
-  // Define spherical basis vectors.
-  a11 = sin(x2)*cos(x3); a12 = sin(x2)*sin(x3); a13 = cos(x2);
-  a21 = cos(x2)*cos(x3); a22 = cos(x2)*sin(x3); a23 = -sin(x2);
-  a31 = -sin(x3);        a32 = cos(x3);         a33 = 0.0;
-
-  // Change basis back to spherical polar.
-  br = bxp*a11 + byp*a12 + bzp*a13;
-  btheta = bxp*a21 + byp*a22 + bzp*a23;
-  bphi = bxp*a31 + byp*a32 + bzp*a33;
-
-  magnetic_field[0] = br;
-  magnetic_field[1] = btheta; 
-  magnetic_field[2] = bphi;
+  magnetic_field[0] = bxp;
+  magnetic_field[1] = byp; 
+  magnetic_field[2] = bzp;
 
   return;
 }
