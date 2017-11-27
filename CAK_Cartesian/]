@@ -1,7 +1,7 @@
 [Grid]
 
-X1-grid  3  -7.0  32   s  -1.2   64  u  1.2   32   s  7.0
-X2-grid  3  -7.0  32   s  -1.2   64  u  1.2   32   s  7.0
+X1-grid  3  -7.0  32   s  -1.2   32  u  1.2   32   s  7.0
+X2-grid  3  -7.0  32   s  -1.2   32  u  1.2   32   s  7.0
 X3-grid  1   0.0  32   u   0.0
 
 [Chombo Refinement]
@@ -68,5 +68,5 @@ Q_factor             700.0
 Velocity_exponent    0.8  
 Rotation             0.0 
 Mean_mol_waight      0.6  
-Magnetic_incl        45.0  
+Magnetic_incl        0.0  
 Cs_p                 15.0  

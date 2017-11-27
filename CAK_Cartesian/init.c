@@ -170,7 +170,7 @@ void Init (double *v, double x1, double x2, double x3)
  *********************************************************************** */
 {
 
-  double velocity;
+  double velocity, rho0;
   double r, r2;
 #if PHYSICS == MHD 
 #if BACKGROUND_FIELD == NO
@@ -181,8 +181,11 @@ void Init (double *v, double x1, double x2, double x3)
   Star star1;
   InitStar1(&star1);
 
+  rho0 = star1.mass_loss/(4.0*CONST_PI
+           *(star1.sound_speed/star1.surface_rho_param));
+
   // Set the minimum pressure via the stellar temperature.
-  g_smallPressure = v[RHO]*star1.temperature/(KELVIN*star1.mean_mol);
+  g_smallPressure = rho0*star1.temperature/(KELVIN*star1.mean_mol);
 
 # if COOLING !=NO
   /* Dylan,Asif: this sets minimum T of the sim.
@@ -457,10 +460,17 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 
 #if EOS == IDEAL
       temp = KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i];
+
+      //int mark = 0;
       if (temp < star1.temperature) {
+        //printf("old_temp=%e, prs=%e, t_* prs=%e \n", temp, d->Vc[PRS][k][j][i], star1.temperature*d->Vc[RHO][k][j][i]/(KELVIN*star1.mean_mol));
         d->Vc[PRS][k][j][i] = star1.temperature*d->Vc[RHO][k][j][i]
                                 /(KELVIN*star1.mean_mol);
+        //printf("new_temp=%e \n", KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i]);
+        //mark = 1;
+        //printf("\n");
       }
+
       // Need to set the temp floor before calculating the CAK accel.
       //if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star1.temperature
       //                           /(KELVIN*star1.mean_mol)){
@@ -472,7 +482,15 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
       CAKAcceleration(d, box, grid, star1, i, j, k);
 #endif
 
-      
+/*      temp = KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i];
+
+      if (mark == 1) {
+        printf("second old_temp=%e, prs=%e, t_* prs=%e \n", temp, d->Vc[PRS][k][j][i], star1.temperature*d->Vc[RHO][k][j][i]/(KELVIN*star1.mean_mol));
+        d->Vc[PRS][k][j][i] = star1.temperature*d->Vc[RHO][k][j][i]
+                                /(KELVIN*star1.mean_mol);
+        printf("new_temp=%e \n", KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i]);
+        printf("\n");
+      }*/
 
     }
   }
@@ -946,7 +964,7 @@ void InitMagneticField(double *magnetic_field,
   // Rotate coordiantes.
   xp = x1*cos(star1.Bfield_angle) - x2*sin(star1.Bfield_angle);
   yp = x1*sin(star1.Bfield_angle) + x2*cos(star1.Bfield_angle);
-  zp = x2;
+  zp = 0.0;
   rp2 = EXPAND(xp*xp, + yp*yp, + zp*zp);
   rp = sqrt(rp2);
   // Calculate b-field components in rotated frame.

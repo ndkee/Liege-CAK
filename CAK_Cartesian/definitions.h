@@ -1,5 +1,5 @@
 #define  PHYSICS                 MHD
-#define  DIMENSIONS              3
+#define  DIMENSIONS              2
 #define  COMPONENTS              3
 #define  GEOMETRY                CARTESIAN
 #define  BODY_FORCE              VECTOR
