@@ -145,13 +145,16 @@ void Init (double *v, double x1, double x2, double x3)
  *********************************************************************** */
 {
 
-  double velocity, magnetic_field[3];
+  double velocity, magnetic_field[3], rho0;
 
   Star star1;
   InitStar1(&star1);
 
+  rho0 = star1.mass_loss/(4.0*CONST_PI
+           *(star1.sound_speed/star1.surface_rho_param));
+
   // Set the minimum pressure via the stellar temperature.
-  g_smallPressure = v[RHO]*star1.temperature/(KELVIN*star1.mean_mol);
+  g_smallPressure = rho0*star1.temperature/(KELVIN*star1.mean_mol);
 
 # if COOLING !=NO
   /* Dylan,Asif: this sets minimum T of the sim.
@@ -264,7 +267,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 
   int i, j, k, ghost;
 
-  double vradial, vtheta, vphi, magnetic_field[3];
+  double vradial, vtheta, vphi, magnetic_field[3], temp;
 
   double *x1 = grid[IDIR].x;                                                  
   double *x2 = grid[JDIR].x;                                                  
@@ -369,14 +372,14 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 #if CAK == YES
   if(side == 0){
     DOM_LOOP(k,j,i){
-      CAKAcceleration(d, grid, star1, i, j, k);
 #if EOS == IDEAL
-      if (d->Vc[PRS][k][j][i] < (rho[k][j][i])*star1.temperature
-                                 /(KELVIN*star1.mean_mol)){
-        d->Vc[PRS][k][j][i] = (rho[k][j][i])*star1.temperature
-                               /(KELVIN*star1.mean_mol);
+      temp = KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i];
+      if (temp < star1.temperature) {
+        d->Vc[PRS][k][j][i] = star1.temperature*d->Vc[RHO][k][j][i]
+                                /(KELVIN*star1.mean_mol);
       }
 #endif
+     CAKAcceleration(d, grid, star1, i, j, k);
     }
   }
 #endif

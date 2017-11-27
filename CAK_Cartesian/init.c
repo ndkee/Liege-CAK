@@ -339,7 +339,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 
   double r, r2;
   //double dr2, dr, ddr;
-  double velocity;
+  double velocity, temp;
 
 #if PHYSICS == MHD 
 #if BACKGROUND_FIELD == NO
@@ -456,12 +456,17 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
       }
 
 #if EOS == IDEAL
-      // Need to set the temp floor before calculating the CAK accel.
-      if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star1.temperature
-                                 /(KELVIN*star1.mean_mol)){
-        d->Vc[PRS][k][j][i] = (d->Vc[RHO][k][j][i])*star1.temperature
-                                 /(KELVIN*star1.mean_mol);
+      temp = KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i];
+      if (temp < star1.temperature) {
+        d->Vc[PRS][k][j][i] = star1.temperature*d->Vc[RHO][k][j][i]
+                                /(KELVIN*star1.mean_mol);
       }
+      // Need to set the temp floor before calculating the CAK accel.
+      //if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star1.temperature
+      //                           /(KELVIN*star1.mean_mol)){
+      //  d->Vc[PRS][k][j][i] = (d->Vc[RHO][k][j][i])*star1.temperature
+      //                           /(KELVIN*star1.mean_mol);
+      //}
 #endif
 #if CAK == YES
       CAKAcceleration(d, box, grid, star1, i, j, k);
