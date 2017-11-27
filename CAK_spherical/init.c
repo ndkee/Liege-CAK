@@ -407,6 +407,7 @@ void BodyForceVector(double *v, double *gla, double *g, double x1, double x2, do
 {
   Star star1;
   InitStar1(&star1);
+
   if (x1 > 1.0){
     g[IDIR] = star1.gravity/x1/x1 + gla[0];
     g[JDIR] = 0.0;
@@ -617,9 +618,9 @@ void AccelVectorRadial(double *gline, const Data *d, double f, double x1,
 
   gline[0] = f*A*pow(x1, -2)*pow(gradV[0]/B, star1.alpha);
 
-  //if (isnan(gradV[0])) {
+  if (isnan(gradV[0])) {
     gline[0] = 0.0;
-  //}
+  }
 
 #if EOS == IDEAL
   // Accounting for total ionisation at high temp 
@@ -770,21 +771,5 @@ void InitMagneticField(double *magnetic_field,
   return;
 }
 /* ********************************************************************* */
-
-
-/* ********************************************************************* */
-void VectorFieldRotation()
-/*!
- *
- *
- *
- *
- *
- *********************************************************************** */
-
-{
-
-  return;
-}
 
 

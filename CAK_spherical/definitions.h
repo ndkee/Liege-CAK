@@ -19,7 +19,7 @@
 #define  RESISTIVITY             NO
 #define  THERMAL_CONDUCTION      NO
 #define  VISCOSITY               NO
-#define  ROTATING_FRAME          YES
+#define  ROTATING_FRAME          NO
 
 /* -- user-defined parameters (labels) -- */
 
