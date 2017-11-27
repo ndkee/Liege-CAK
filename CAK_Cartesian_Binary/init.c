@@ -55,22 +55,24 @@ void InitStar1(Star *star1);
 
 void InitBinary(double *v, double x1, double x2, double x3, Star star);
 
-void BoundaryBinary(const Data *d, RBox *box, 
-                    int side, Star star, double shift);
+void BoundaryBinary(const Data *d, int i, int j, int k, 
+                    double x, double y, double z, double r, 
+                    Grid *grid, Star star);
 
 void InitMagneticField(double *magnetic_field, double x1, double x2, 
                        double x3, Star star1);
 
-void CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, int i, int j, int k);
+double CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, 
+                       int i, int j, int k, double *, double r);
 
 double FiniteDiskCorrection(double dvdr, double vx1, double x1, double alpha);
 
 double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, 
-                                     double *x1, double *x2, double *x3,
+                                     double *x1, double *x2, double *x3, double r,
                                      int i, int j, int k);
 
 double AccelVectorRadial(const Data *d, Grid *grid, 
-                       double f, double dvdr, Star star1, 
+                       double r, double f, double dvdr, Star star1, 
                        int i, int j, int k);
 
 void AccelVectorNonRadial(double *gline, const Data *d, Grid *grid, 
@@ -175,15 +177,19 @@ void Init (double *v, double x1, double x2, double x3)
  *********************************************************************** */
 {
 
-  if (x1 < 0.0) {
+  double shift1, shift2;
+
+  if (x1 > 0.0) {
     Star star1;
     InitStar1(&star1);
-    InitBinary(v, x1+5.0, x2, x3, star1);
+    shift1 = 5.0;
+    InitBinary(v, x1-shift1, x2, x3, star1);
   }
-  else if (x1 > 0.0) {
+  else if (x1 < 0.0) {
     Star star2;
     InitStar1(&star2);
-    InitBinary(v, x1-5.0, x2, x3, star2);
+    shift2 = -5.0;
+    InitBinary(v, x1-shift2, x2, x3, star2);
   }
 
   return;
@@ -371,58 +377,87 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 {        
 
   int i, j, k;
-  double shift = 5.0;
+  double shift1, shift2, temp, gline, rp, rp2, rs, rs2;
   double *x1 = grid[IDIR].x;                                                  
+  double *x2 = grid[JDIR].x;                                                  
+  double *x3 = grid[KDIR].x;                                                  
+  double *x1_shift1 = ARRAY_1D(NX1_TOT ,double); 
+  double *x1_shift2 = ARRAY_1D(NX1_TOT ,double); 
+
 
   Star star1;
   InitStar1(&star1);
+  shift1 = 5.0;
+  for (i=0; i<NX1_TOT; i++){
+    x1_shift1[i] = x1[i] - shift1;
+  }
+
   Star star2;
   InitStar1(&star2);
+  shift2 = -5.0;
+  for (i=0; i<NX1_TOT; i++){
+    x1_shift2[i] = x1[i] - shift2;
+  }
+
+  if(side == 0){
+    DOM_LOOP(k,j,i){
+
+      if (x1[i] >= 0.0) {
+        rp2  = EXPAND(x1_shift1[i]*x1_shift1[i],+x2[j]*x2[j],+x3[k]*x3[k]);
+        rp   = sqrt(rp2);
+        BoundaryBinary(d, i, j, k, x1_shift1[i], x2[j], x3[k], rp, grid, star1);
+      }
+      else if (x1[i] <= 0.0) {
+        rs2  = EXPAND(x1_shift2[i]*x1_shift2[i],+x2[j]*x2[j],+x3[k]*x3[k]);
+        rs   = sqrt(rs2);
+        BoundaryBinary(d, i, j, k, x1_shift2[i], x2[j], x3[k], rs, grid, star2);
+      }
+
+    }
+  }
 
   if(side == 0){
     DOM_LOOP(k,j,i){
 
 #if EOS == IDEAL
-      // Need to set this as the average of the two binaries, or the hotest!!
-      // Need to set the temp floor before calculating the CAK accel.
-      if (d->Vc[PRS][k][j][i] < (d->Vc[RHO][k][j][i])*star1.temperature
-                                 /(KELVIN*star1.mean_mol)){
-        d->Vc[PRS][k][j][i] = (d->Vc[RHO][k][j][i])*star1.temperature
-                                 /(KELVIN*star1.mean_mol);
+      temp = KELVIN*d->Vc[PRS][k][j][i]*star1.mean_mol/d->Vc[RHO][k][j][i];
+      if (temp < star1.temperature) {
+        d->Vc[PRS][k][j][i] = star1.temperature*d->Vc[RHO][k][j][i]
+                                /(KELVIN*star1.mean_mol);
       }
 #endif
- 
-      if (x1[i] < 0.0) {
-        BoundaryBinary(d, box, side, grid, star1, shift);
-      }
-      else if (x1[i] > 0.0) {
-        BoundaryBinary(d, box, side, grid, star2, -shift);
-      }
-
 
 #if CAK == YES
-      gline = CAKAcceleration(d, box, grid, star1, i, j, k);
-      if (r < star1.radius) {
+      EXPAND(d->gL[0][k][j][i] = 0.0;,
+             d->gL[1][k][j][i] = 0.0;,
+             d->gL[2][k][j][i] = 0.0;)
+
+      rp2 = EXPAND(x1_shift1[i]*x1_shift1[i],+x2[j]*x2[j],+x3[k]*x3[k]);
+      rp = sqrt(rp2);
+      gline = CAKAcceleration(d, box, grid, star1, i, j, k, x1_shift1, rp);
+      if (rp < star1.radius) {
         EXPAND(d->gL[0][k][j][i] = 0.0;,
                d->gL[1][k][j][i] = 0.0;,
                d->gL[2][k][j][i] = 0.0;)
       }else {
-        EXPAND(d->gL[0][k][j][i] = gline*(x1[i] + shift)/r;,
-               d->gL[1][k][j][i] = gline*x2[j]/r;,
-               d->gL[2][k][j][i] = gline*x3[k]/r;)
+        EXPAND(d->gL[0][k][j][i] = gline*x1_shift1[i]/rp;,
+               d->gL[1][k][j][i] = gline*x2[j]/rp;,
+               d->gL[2][k][j][i] = gline*x3[k]/rp;)
       }
-      gline = CAKAcceleration(d, box, grid, star2, i, j, k);
-      if (r < star2.radius) {
+
+      rs2 = EXPAND(x1_shift2[i]*x1_shift2[i],+x2[j]*x2[j],+x3[k]*x3[k]);
+      rs = sqrt(rs2);
+      gline = CAKAcceleration(d, box, grid, star2, i, j, k, x1_shift2, rs);
+      if (rs < star2.radius) {
         EXPAND(d->gL[0][k][j][i] = 0.0;,
                d->gL[1][k][j][i] = 0.0;,
                d->gL[2][k][j][i] = 0.0;)
       }else {
-        EXPAND(d->gL[0][k][j][i] += gline*(x1[i] - shift)/r;,
-               d->gL[1][k][j][i] += gline*x2[j]/r;,
-               d->gL[2][k][j][i] += gline*x3[k]/r;)
+        EXPAND(d->gL[0][k][j][i] += gline*x1_shift2[i]/rs;,
+               d->gL[1][k][j][i] += gline*x2[j]/rs;,
+               d->gL[2][k][j][i] += gline*x3[k]/rs;)
       }
 #endif
-
 
     }
   }
@@ -436,8 +471,9 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
 
 
 /* ********************************************************************* */
-void BoundaryBinary(const Data *d, RBox *box, 
-                    int side, Star star, double shift)
+void BoundaryBinary(const Data *d, int i, int j, int k, 
+                    double x, double y, double z, double r, 
+                    Grid *grid, Star star)
 /*!
  *
  *
@@ -450,128 +486,88 @@ void BoundaryBinary(const Data *d, RBox *box,
  *********************************************************************** */
 {
 
-  int i, j, k;
-
-  double r, r2;
-  //double dr2, dr, ddr;
   double velocity;
-
+  double ***gLx1 = d->gL[0];
+  double ***gLx2 = d->gL[1];
+  double ***gLx3 = d->gL[2];
 #if PHYSICS == MHD 
 #if BACKGROUND_FIELD == NO
   double magnetic_field[3];
 #endif
 #endif
 
-  double *x1 = grid[IDIR].x;                                                  
-  double *x2 = grid[JDIR].x;                                                  
-  double *x3 = grid[KDIR].x;
-  //double *dx1 = grid[IDIR].dx;
-  //double *dx2 = grid[JDIR].dx;
-  //double *dx3 = grid[KDIR].dx;
-  double ***gLx1 = d->gL[0];
-  double ***gLx2 = d->gL[1];
-  double ***gLx3 = d->gL[2];;
-
-  if(g_stepNumber < 2){
+/*  if(g_stepNumber < 2){
     double Bcgs = star.Bfield*UNIT_B;
     double M_dot_cgs = star.mass_loss*UNIT_MASS/UNIT_TIME;
     printf("Bcgs=%e, M_dotcgs=%e, Edd_gam=%e , Omega=%e  \n", 
            Bcgs, M_dot_cgs/6.35e25, star.Eddington, 
            star.rotational_velocity*UNIT_VELOCITY);
-  }
+  }*/
 
+  if (r <= 0.5*star.radius) {
 
-  if(side == 0){
-    DOM_LOOP(k,j,i){
-
-      r2  = EXPAND(x1[i]*x1[i],+x2[j]*x2[j],+x3[k]*x3[k]);
-      r   = sqrt(r2);
-
-      if (r <= 0.5*star1.radius) {
-
-        d->Vc[RHO][k][j][i] = star.mass_loss
-                 /(4.0*CONST_PI*(star.sound_speed
-                 /star.surface_rho_param));
+    d->Vc[RHO][k][j][i] = star.mass_loss
+             /(4.0*CONST_PI*(star.sound_speed
+             /star.surface_rho_param));
 
 #if EOS == IDEAL                                                              
-        d->Vc[PRS][k][j][i] = d->Vc[RHO][k][j][i]*star1.temperature
+    d->Vc[PRS][k][j][i] = d->Vc[RHO][k][j][i]*star.temperature
                                 /(KELVIN*star.mean_mol);
 #endif
 
-        D_EXPAND(d->Vc[VX1][k][j][i] = 0.0;,
-                 d->Vc[VX2][k][j][i] = 0.0;,                               
-                 d->Vc[VX3][k][j][i] = 0.0;)
+    D_EXPAND(d->Vc[VX1][k][j][i] = 0.0;,
+             d->Vc[VX2][k][j][i] = 0.0;,                               
+             d->Vc[VX3][k][j][i] = 0.0;)
 
 #if PHYSICS == MHD 
 #if BACKGROUND_FIELD == NO
-        InitMagneticField(magnetic_field, x1[i], x2[j], x3[k], star);
-        EXPAND(d->Vc[BX1][k][j][i] = magnetic_field[0];,
-               d->Vc[BX2][k][j][i] = magnetic_field[1];,
-               d->Vc[BX3][k][j][i] = magnetic_field[2];)
+    InitMagneticField(magnetic_field, x, y, z, star);
+    EXPAND(d->Vc[BX1][k][j][i] = magnetic_field[0];,
+           d->Vc[BX2][k][j][i] = magnetic_field[1];,
+           d->Vc[BX3][k][j][i] = magnetic_field[2];)
 #endif
 #endif
 
-        EXPAND(gLx1[k][j][i] = 0.0;,
-               gLx2[k][j][i] = 0.0;,
-               gLx3[k][j][i] = 0.0;)
+    EXPAND(gLx1[k][j][i] = 0.0;,
+           gLx2[k][j][i] = 0.0;,
+           gLx3[k][j][i] = 0.0;)
 
 
-        d->flag[k][j][i] |= FLAG_INTERNAL_BOUNDARY;
+    d->flag[k][j][i] |= FLAG_INTERNAL_BOUNDARY;
 
-      } else if (r > 0.5*star.radius && r <= star.radius) {
+  } else if (r > 0.5*star.radius && r <= star.radius) {
       
-        d->Vc[RHO][k][j][i] = (star.mass_loss
-                                /(4.0*CONST_PI*(star.sound_speed
-                                /star.surface_rho_param)));
+    d->Vc[RHO][k][j][i] = (star.mass_loss
+                            /(4.0*CONST_PI*(star.sound_speed
+                            /star.surface_rho_param)));
 
 #if EOS == IDEAL                                                              
-        d->Vc[PRS][k][j][i] = d->Vc[RHO][k][j][i]*star.temperature
-                                /(KELVIN*star.mean_mol);
+    d->Vc[PRS][k][j][i] = d->Vc[RHO][k][j][i]*star.temperature
+                            /(KELVIN*star.mean_mol);
 #endif
 
-/*
-        dr2 = EXPAND(dx1[i]*dx1[i], + dx2[j]*dx2[j], + dx3[k]*dx3[k]);
-        dr = sqrt(dr2);
-        ddr = 0.9*dr;
-        if (r < star.radius && r + 5.0*ddr > star.radius ) {
-#if DIMENSIONS == 2
-          velocity = TwoDimensionalInterp(d, box, grid, i, j, k, x1, x2, r, dr);
-#endif
-#if DIMENSIONS == 3
-          velocity = ThreeDimensionalInterp(d, box, grid, i, j, k, x1, x2, x3, r, dr);
-#endif
-        } else {
-          velocity = 0.0;
-        }
-*/
-
-        velocity = star.sound_speed/star.surface_rho_param;
-        D_EXPAND(d->Vc[VX1][k][j][i] = velocity*x1[i]/r;,
-                 d->Vc[VX2][k][j][i] = velocity*x2[j]/r;,
-                 d->Vc[VX3][k][j][i] = velocity*x3[k]/r;)
+    velocity = star.sound_speed/star.surface_rho_param;
+    D_EXPAND(d->Vc[VX1][k][j][i] = velocity*x/r;,
+             d->Vc[VX2][k][j][i] = velocity*y/r;,
+             d->Vc[VX3][k][j][i] = velocity*z/r;)
 
 #if PHYSICS == MHD 
 #if BACKGROUND_FIELD == NO      
-        InitMagneticField(magnetic_field, x1[i], x2[j], x3[k], star);
-        EXPAND(d->Vc[BX1][k][j][i] = magnetic_field[0];,
-               d->Vc[BX2][k][j][i] = magnetic_field[1];,
-               d->Vc[BX3][k][j][i] = magnetic_field[2];)
+    InitMagneticField(magnetic_field, x, y, z, star);
+    EXPAND(d->Vc[BX1][k][j][i] = magnetic_field[0];,
+           d->Vc[BX2][k][j][i] = magnetic_field[1];,
+           d->Vc[BX3][k][j][i] = magnetic_field[2];)
 #endif
 #endif
 
-        d->flag[k][j][i] |= FLAG_INTERNAL_BOUNDARY;
+    d->flag[k][j][i] |= FLAG_INTERNAL_BOUNDARY;
 
-        EXPAND(gLx1[k][j][i] = 0.0;,
-               gLx2[k][j][i] = 0.0;,
-               gLx3[k][j][i] = 0.0;)
+    EXPAND(gLx1[k][j][i] = 0.0;,
+           gLx2[k][j][i] = 0.0;,
+           gLx3[k][j][i] = 0.0;)
 
-      }
-
-
-      
-
-    }
   }
+
   return;
 
 }
@@ -600,17 +596,26 @@ void BodyForceVector(double *v, double *gla, double *g, double x1, double x2, do
  *********************************************************************** */
 {
 
+  double rs2, rs, rp, rp2, Fin_x1, Fin_x2, ggs, ggp, g_in;
+  double shift1, shift2;
+
   Star star1;
   InitStar1(&star1);
+  shift1 = 0.5;
 
-  double r2, r, Fin_x1, Fin_x2, gg, g_in;
+  Star star2;
+  InitStar1(&star2);
+  shift2 = -0.5;
 
   /* - Distance from star - */
-  r2 = EXPAND(x1*x1, + x2*x2, + x3*x3);
-  r = sqrt(r2);
+  rp2 = EXPAND((x1-shift1)*(x1-shift1), + x2*x2, + x3*x3);
+  rp = sqrt(rp2);
+  rs2 = EXPAND((x1-shift2)*(x1-shift2), + x2*x2, + x3*x3);
+  rs = sqrt(rs2);
 
   /* - Gravity outside bodies - */
-  gg = star1.gravity/r/r;
+  ggp = star1.gravity/rp/rp;
+  ggs = star2.gravity/rs/rs;
 
   /* - Gravity inside bodies - */
   g_in = -(4.0/3.0)*CONST_PI*UNIT_G*v[RHO];     
@@ -630,13 +635,17 @@ void BodyForceVector(double *v, double *gla, double *g, double x1, double x2, do
   //double gl = sqrt(gla[0]*gla[0] + gla[1]*gla[1] + gla[2]*gla[2]);
   //printf("gl=%e, gg=%e, gl-gg=%e r=%e \n", gl, gg, gl-fabs(gg), r);
 
-  if (r >= star1.radius){ // - External gravity + centrifugal + coriolis 
-    g[IDIR] = gg*x1/r + Fin_x1 + gla[0];
-    g[JDIR] = gg*x2/r + Fin_x2 + gla[1];
-    g[KDIR] = gg*x3/r + gla[2];
-  } else { // - Star interal gravity + rotation 
-    g[IDIR] = g_in*x1 + Fin_x1;
-    g[JDIR] = g_in*x2 + Fin_x2;
+  if (rp >= star1.radius && rs > star2.radius){ // - External gravity
+    g[IDIR] = ggp*(x1-shift1)/rp + ggs*(x1-shift2)/rs + Fin_x1 + gla[0];
+    g[JDIR] = ggp*x2/rp + ggs*x2/rs + Fin_x2 + gla[1];
+    g[KDIR] = ggp*x3/rp + ggs*x3/rs + gla[2];
+  } else if (rp < star1.radius) { // - Star interal gravity 
+    g[IDIR] = g_in*(x1-shift1);
+    g[JDIR] = g_in*x2;
+    g[KDIR] = g_in*x3;
+  } else if (rs < star2.radius) { // - Star interal gravity 
+    g[IDIR] = g_in*(x1-shift2);
+    g[JDIR] = g_in*x2;
     g[KDIR] = g_in*x3;
   }
 
@@ -704,7 +713,8 @@ void BodyForceVector(double *v, double *g, double x1, double x2, double x3)
 #endif
 
 /* ********************************************************************* */
-void CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, int i, int j, int k)
+double CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, 
+                       int i, int j, int k, double *x1, double r)
 /*!
  * Calculate CAK line force acceleration.
  *
@@ -721,18 +731,11 @@ void CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, int i, in
  *********************************************************************** */
 {
 
-  double f=0.0;
-  double dvdr, gline;
-
-  double *x1 = grid[IDIR].x;                                                  
+  double f, dvdr, gline, vr;
   double *x2 = grid[JDIR].x;                                                  
   double *x3 = grid[KDIR].x;
-  double r=0.0, r2=0.0, vr=0.0;
 
-  r2  = EXPAND(x1[i]*x1[i],+x2[j]*x2[j],+x3[k]*x3[k]);
-  r   = sqrt(r2); 
-
-  dvdr = VelocityGradientVectorCartesian(d, box, grid, x1, x2, x3, i, j, k);
+  dvdr = VelocityGradientVectorCartesian(d, box, grid, x1, x2, x3, r, i, j, k);
 
   vr = EXPAND(d->Vc[VX1][k][j][i]*x1[i]/r, 
             + d->Vc[VX2][k][j][i]*x2[j]/r, 
@@ -740,7 +743,7 @@ void CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, int i, in
 
   f = FiniteDiskCorrection(dvdr, vr, r, star1.alpha);
 
-  gline = AccelVectorRadial(d, grid, f, dvdr, star1, i, j, k);
+  gline = AccelVectorRadial(d, grid, r, f, dvdr, star1, i, j, k);
 
 
   return  gline;
@@ -749,7 +752,7 @@ void CAKAcceleration(const Data *d, RBox *box, Grid *grid, Star star1, int i, in
 
 /* ********************************************************************* */
 double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, double *x1, 
-                                     double *x2, double *x3,
+                                     double *x2, double *x3, double r,
                                      int i, int j, int k)
 /*!
  * Calculate components of the velocity gradient.
@@ -776,16 +779,8 @@ double VelocityGradientVectorCartesian(const Data *d, RBox *box, Grid *grid, dou
   //double dx=0.0, dy=0.0, dz=0.0;
   double dr2=0.0, dr=0.0, ddr=0.0;
   double vrI[2], vr=0.0, dvdr=0.0;
-  double r=0.0, r2=0.0;
   double P00, P11, P22, P01, P12; 
 
-  r2  = EXPAND(x1[i]*x1[i],+x2[j]*x2[j],+x3[k]*x3[k]);
-  r   = sqrt(r2);
-
-  //dx = x1[i+1] - x1[i];
-  //dy = x2[j+1] - x2[j];
-  //dz = x3[k+1] - x3[k];
-  //dr2  = EXPAND(dx*dx, + dy*dy, + dz*dz);
   dr2  = EXPAND(dx1[i]*dx1[i], + dx2[j]*dx2[j], + dx3[k]*dx3[k]);
   dr   = sqrt(dr2);
   ddr = 0.9*dr;
@@ -862,7 +857,7 @@ double FiniteDiskCorrection(double dvdr, double vx1, double r, double alpha)
 
 /* ********************************************************************* */
 double AccelVectorRadial(const Data *d, Grid *grid, 
-                       double f, double dvdr, Star star1, 
+                       double r, double f, double dvdr, Star star1, 
                        int i, int j, int k)
 /*!
  * Calculate components of the velocity gradient.
@@ -882,10 +877,6 @@ double AccelVectorRadial(const Data *d, Grid *grid,
 {
 
   double B=0.0, A=0.0, ke=0.0, temp=0.0;
-  double *x1 = grid[IDIR].x;
-  double *x2 = grid[JDIR].x;
-  double *x3 = grid[KDIR].x;
-  double r=0.0, r2=0.0;
   double gline=0.0, factor=0.0;
 
   ke = 4.0*CONST_PI*UNIT_G*star1.mass*UNIT_c
@@ -896,9 +887,6 @@ double AccelVectorRadial(const Data *d, Grid *grid,
   A = 1.0/(1.0 - star1.alpha)*ke*star1.luminosity
         *star1.q_fac/(4.0*CONST_PI*UNIT_c);
 
-  r2  = EXPAND(x1[i]*x1[i], + x2[j]*x2[j], + x3[k]*x3[k]);
-  r   = sqrt(r2);
-     
   gline = f*A*pow(r, -2)*pow(dvdr/B, star1.alpha);
 
 #if EOS == IDEAL
@@ -910,29 +898,6 @@ double AccelVectorRadial(const Data *d, Grid *grid,
   factor = fmax(factor, 1.0e-8);
   //gline *= factor;
 #endif
-
-  /* This set of if statements checks and excludes 
-     the ghost zones from being accelerated. Basically
-     stops strangeness from happening. */
-/*
-#if DIMENSIONS == 3
-  if (i < 2 || j < 2 || k < 2) {
-    gline = 0.0;
-  }
-  if (i > NX1+1 || j > NX2+1 || k > NX3+1){
-    gline = 0.0;
-  }
-#endif
-#if DIMENSIONS == 2
-  if (i < 2 || j < 2) {
-    gline = 0.0;
-  }
-  if (i > NX1+1 || j > NX2+1){
-    gline = 0.0;
-  }
-#endif
-*/
-  //print("gline=%e \n", gline);
 
   return gline;
 }

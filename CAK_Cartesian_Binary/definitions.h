@@ -1,5 +1,5 @@
 #define  PHYSICS                 HD
-#define  DIMENSIONS              3
+#define  DIMENSIONS              2
 #define  COMPONENTS              3
 #define  GEOMETRY                CARTESIAN
 #define  BODY_FORCE              VECTOR
@@ -61,7 +61,7 @@
 #define  INITIAL_SMOOTHING   NO
 #define  WARNING_MESSAGES    NO
 #define  PRINT_TO_FILE       NO
-#define  INTERNAL_BOUNDARY   NO
+#define  INTERNAL_BOUNDARY   YES
 #define  SHOCK_FLATTENING    NO
 #define  CHAR_LIMITING       NO
 #define  LIMITER             VANLEER_LIM
