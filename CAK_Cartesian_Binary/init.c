@@ -1,20 +1,39 @@
 /* ********************************************************************* */
-/*
-   Initilisation file for a radiativly driven stellar wind with a 
-   non-rigid dipole configuration magnetic field.
-
-   The boundary and initial conditions are taken 
-   from Runacres and Owocki (2002)    
-
-   The method for calculating the radiative acceleration 
-   comes from CAK (1975)      
-
-   The model only works with polar corrdinates in 2D, with the 
-   MHD module. 1D, 3D, HD, RHD, RMHD and other geometries do not 
-   work at the moment.
-
-*/
-/* ********************************************************************* */
+/*!
+ * Initilisation file for a radiativly driven stellar wind with a 
+ * non-rigid dipole configuration magnetic field.
+ *
+ * The boundary and initial conditions are taken 
+ * from Runacres and Owocki (2002)    
+ *
+ * The method for calculating the radiative acceleration 
+ * comes from CAK (1975)      
+ *
+ * The model only works with polar corrdinates in 2D, with the 
+ * MHD module. 1D, 3D, HD, RHD, RMHD and other geometries do not 
+ * work at the moment.
+ *
+ * Authers: Simon Daley-Yates & Asif ud-Doula and Dylan Keen. 
+ *
+ * Last update: 27/11/2017
+ *
+ * TODO: Stellar doundary conditions need to be set properly. At the 
+ *       moment the BC velocity is set to be sound speed / density 
+ *       parameter.
+ *
+ *       Also, cooling and the temperature floor need tweeking.
+ *
+ *       The stellar surface need initialising via the subsampling 
+ *       method or similar. Could use the level set method or the 
+ *       just a version of the one that comes with PLUTO. Or do some 
+ *       geometry and figure out how to calculate the volume onclosed 
+ *       by a sphere and a cube and waight values accourding to volume 
+ *       out/in star.
+ *
+ *       The resoltion in the wind-wind collition region is really bad 
+ *       will need AMR for this. PLUTO may not do it. AMRVAC?
+ *
+ ********************************************************************** */
 #include "pluto.h"                                                                  
 
 /* ********************************************************************* */

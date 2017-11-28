@@ -1,20 +1,29 @@
 /* ********************************************************************* */
-/*
-   Initilisation file for a radiativly driven stellar wind with a 
-   non-rigid dipole configuration magnetic field.
-
-   The boundary and initial conditions are taken 
-   from Runacres and Owocki (2002)    
-
-   The method for calculating the radiative acceleration 
-   comes from CAK (1975)      
-
-   The model only works with polar corrdinates in 2D, with the 
-   MHD module. 1D, 3D, HD, RHD, RMHD and other geometries do not 
-   work at the moment.
-
-*/
-/* ********************************************************************* */
+/*!
+ * Initilisation file for a radiativly driven stellar wind with a 
+ * non-rigid dipole configuration magnetic field.
+ *
+ * The boundary and initial conditions are taken 
+ * from Runacres and Owocki (2002)    
+ *
+ * The method for calculating the radiative acceleration 
+ * comes from CAK (1975)      
+ *
+ * The model only works with polar corrdinates in 2D, with the 
+ * MHD module. 1D, 3D, HD, RHD, RMHD and other geometries do not 
+ * work at the moment.
+ *
+ * Authers: Simon Daley-Yates & Asif ud-Doula and Dylan Keen. 
+ *
+ * Last update: 27/11/2017
+ *
+ * TODO: Cooling function seams to be limiting the time step to much. 
+ *       This may require playing around with the g_maxCoolingRate 
+ *       parameter. At the moment I feel confortable using this code for 
+ *       radial line acceleration with rotation and isothermal eos. ideal 
+ *       works but sufferes from timestep decay.
+ *
+ ********************************************************************** */
 #include "pluto.h"                                                                  
 
 /* ********************************************************************* */
