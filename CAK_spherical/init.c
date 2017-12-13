@@ -346,7 +346,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         EXPAND(vradial = vradial;,
                vtheta = star1.sound_speed;,
                vphi = vphi;)
-      } else if (vradial < -star1.sound_speed){
+      } else if (vtheta < -star1.sound_speed){
         EXPAND(vradial = vradial;,
                vtheta = -star1.sound_speed;,
                vphi = vphi;)
