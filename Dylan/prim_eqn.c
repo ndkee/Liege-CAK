@@ -1,10 +1,9 @@
 /* ///////////////////////////////////////////////////////////////////// */
 /*! 
   \file  
-  \brief Compute the right hand side of the HD equations in primitive
-         form.
+  \brief Compute the right hand side of the primitive MHD equations.
   
-  Implements the right hand side of the quasi-linear form of the hydro
+  Implements the right hand side of the quasi-linear form of the MHD 
   equations. 
   In 1D this may be written as
   \f[ 
@@ -20,9 +19,9 @@
  
   The function PrimRHS() implements the first term while PrimSource() 
   implements the source term part.
-
+ 
   \author A. Mignone (mignone@ph.unito.it)
-  \date   April 02, 2015
+  \date   Aug 26, 2015
 */
 /* ///////////////////////////////////////////////////////////////////// */
 #include "pluto.h"
@@ -31,51 +30,104 @@
 void PrimRHS (double *v, double *dv, double cs2, double h, double *Adv)
 /*!
  * Compute the matrix-vector multiplication \f$ A(\mathbf{v})\cdot 
- * \Delta\mathbf{v} \f$ where A is the matrix of the quasi-linear form 
- * of the HD equations.
+ * d\mathbf{v} \f$ where A is the matrix of the quasi-linear form 
+ * of the MHD equations.
  *
- * \param [in]  w    vector of primitive variables;
- * \param [in]  dw   limited (linear) slopes;
- * \param [in]  cs2  local sound speed;
- * \param [in]  h    local enthalpy;
- * \param [out] Adw  matrix-vector product.
+ *  \b References
+ *
+ *  - "A solution adaptive upwind scheme for ideal MHD",
+ *    Powell et al., JCP (1999) 154, 284
+ *
+ *  - "An unsplit Godunov method for ideal MHD via constrained transport"
+ *    Gardiner \& Stone, JCP (2005) 205, 509
+ *
+ * \param [in]  v    vector of primitive variables
+ * \param [in]  dv   limited (linear) slopes
+ * \param [in]  cs2  local sound speed
+ * \param [in]  h    local enthalpy
+ * \param [out] AdV  matrix-vector product
+ *
  * \return This function has no return value.
- ************************************************************************** */
+ ************************************************************************* */
 {
-  int  nv;
-  double u;
+  int nv;
+  double tau, scrh;
+  double ch2;
 
-  u   = v[VXn];
-  
-  Adv[RHO] = u*dv[RHO] + v[RHO]*dv[VXn];
+  tau = 1.0/v[RHO];
+
+/* ---------------------------------------------
+         Adv[k]  Contains A[k][*]*dv[*]  
+   ---------------------------------------------  */
+
+  Adv[RHO] = v[VXn]*dv[RHO] + v[RHO]*dv[VXn];
+  scrh = EXPAND(0.0, + v[BXt]*dv[BXt], + v[BXb]*dv[BXb]);
+
   #if EOS == IDEAL || EOS == PVTE_LAW
-   EXPAND(Adv[VXn] = u*dv[VXn] + dv[PRS]/v[RHO];  ,
-          Adv[VXt] = u*dv[VXt];                 ,
-          Adv[VXb] = u*dv[VXb];)
-   Adv[PRS] = cs2*v[RHO]*dv[VXn] + u*dv[PRS];
+   Adv[VXn] = v[VXn]*dv[VXn] + tau*(dv[PRS] + scrh);
   #elif EOS == ISOTHERMAL
-   EXPAND(Adv[VXn] = u*dv[VXn] + cs2*dv[RHO]/v[RHO];  ,
-          Adv[VXt] = u*dv[VXt];                       ,
-          Adv[VXb] = u*dv[VXb];)
+   Adv[VXn] = v[VXn]*dv[VXn] + tau*(cs2*dv[RHO] + scrh);
+  #else 
+   print ("! PRIM_RHS: not defined for this EoS\n");
+   QUIT_PLUTO(1);
   #endif
 
- /* ---- scalars  ---- */
+  EXPAND(                                         ;    ,
+         Adv[VXt] = v[VXn]*dv[VXt] - tau*v[BXn]*dv[BXt];    ,
+         Adv[VXb] = v[VXn]*dv[VXb] - tau*v[BXn]*dv[BXb]; ) 
 
-#if NSCL > 0     			    
-  NSCL_LOOP(nv) Adv[nv] = u*dv[nv];
+  #if DIVB_CONTROL == EIGHT_WAVES
+   Adv[BXn] = v[VXn]*dv[BXn];
+  #elif DIVB_CONTROL == DIV_CLEANING 
+   ch2 = glm_ch*glm_ch;
+   Adv[BXn]      = dv[PSI_GLM];             
+   Adv[PSI_GLM] = dv[BXn]*ch2; 
+  #else
+   Adv[BXn] = 0.0;
+  #endif
+   
+/* ------------------------------------------------------------------- */
+/*! \note 
+    In the 7-wave and 8-wave formulations we use the the same matrix 
+    being decomposed into right and left eigenvectors during 
+    the Characteristic Tracing step.
+    Note, however, that it DOES NOT include two additional  terms 
+    (-vy*dV[BX] for By, -vz*dv[BX] for Bz) that are needed in the 
+    7-wave form and are added using source terms.
+   --------------------------------------------------------------------- */
+
+  EXPAND(                                                    ;          ,
+         Adv[BXt] = v[BXt]*dv[VXn] - v[BXn]*dv[VXt] + v[VXn]*dv[BXt];   ,
+         Adv[BXb] = v[BXb]*dv[VXn] - v[BXn]*dv[VXb] + v[VXn]*dv[BXb];)
+
+  #if EOS == IDEAL
+   Adv[PRS] = g_gamma*v[PRS]*dv[VXn] + v[VXn]*dv[PRS];
+  #elif EOS == PVTE_LAW
+   Adv[PRS] = cs2*v[RHO]*dv[VXn] + v[VXn]*dv[PRS];
+  #endif
+
+/*  -------------------------------------------------------------
+                         Now Define Tracers
+    ------------------------------------------------------------- */
+
+#if NSCL > 0
+  NSCL_LOOP(nv) Adv[nv] = v[VXn]*dv[nv];
 #endif
 
 }
 
 /* ********************************************************************* */
-void PrimSource (const State_1D *state, int beg, int end,
-                 double *a2, double *h, double **src, Grid *grid)
+void PrimSource (const State_1D *state, int beg, int end, double *a2, 
+                  double *h, double **src, Grid *grid)
 /*!
- * Compute source terms of the HD equations in primitive variables.
+ * Compute source terms of the MHD equations in primitive variables.
+ * These include:
  *
  *  - Geometrical sources;
+ *  - Shearing-box terms 
  *  - Gravity;
- *  - Fargo source terms.
+ *  - terms related to divergence of B control (Powell eight wave and GLM);
+ *  - FARGO source terms.
  *
  *  The rationale for choosing during which sweep a particular source 
  *  term has to be incorporated should match the same criterion used 
@@ -83,32 +135,48 @@ void PrimSource (const State_1D *state, int beg, int end,
  *  For instance, in polar or cylindrical coordinates, curvilinear source
  *  terms are included during the radial sweep only.
  * 
- * \param [in]  state pointer to a State_1D structure;
- * \param [in]  beg   initial index of computation;
- * \param [in]  end   final   index of computation;
- * \param [in]  a2    array of sound speed; 
- * \param [in]  h     array of enthalpies (not needed in MHD);
- * \param [out] src   array of source terms;
- * \param [in]  grid  pointer to a Grid structure.
- * \return This function has no return value.
+ * \param [in]  state pointer to a State_1D structure
+ * \param [in]  beg   initial index of computation
+ * \param [in]  end   final   index of computation
+ * \param [in]  a2    array of sound speed
+ * \param [in]  h     array of enthalpies (not needed in MHD)
+ * \param [out] src   array of source terms
+ * \param [in]  grid  pointer to a Grid structure
  *
  * \note This function does not work in spherical coordinates yet. 
+ *   For future implementations we annotate hereafter the induction 
+ *   equation in spherical coordinates:
+ *
+ *  \f[ \partial_tB_r + \frac{1}{r}\partial_\theta E_\phi
+ *    - \frac{1}{r\sin\theta}\partial_\phi E_\theta = -E_\phi\cot\theta/r \f]
+ *  \f[ \partial_t B_\theta + \frac{1}{r\sin\theta}\partial_\phi E_r
+ *    - \partial_rE_\phi =   E_\phi/r \f]
+ *  \f[ \partial_t B_\phi + \partial_r E_\theta 
+ *    - \frac{1}{r}\partial_\theta E_r = - E_\theta/r\f]
+ *
+ * where 
+ *  \f[ E_\phi   = -(v \times B)_\phi   = - (v_r B_\theta - v_\theta B_r) 
+ *     \,,\qquad
+ *      E_\theta = -(v \times B)_\theta = - (v_\phi B_r    - v_r B_\phi) \f]
  *********************************************************************** */
 {
   int    nv, i, j, k;
   double tau, dA_dV, th;
   double hscale; /* scale factor */
-  double *v, *vp, *A, *dV, r_inv, ct;
+  double *v, *vp,  *A, *dV, r_inv, ct;
   double *x1,  *x2,  *x3;
   double *x1p, *x2p, *x3p;
   double *dx1, *dx2, *dx3;
   static double *phi_p;
-  double g[3], scrh;
+  double g[3], ch2, db, scrh;
+  #if CAK == YES
+  double *gla;
+  #endif
 
-#if ROTATING_FRAME == YES
-  print1 ("! PrimSource(): does not work with rotations\n");
-  QUIT_PLUTO(1);
-#endif
+  #if ROTATING_FRAME == YES
+   print1 ("! PrimSource: does not work with rotations\n");
+   QUIT_PLUTO(1);
+  #endif
 
 /* ----------------------------------------------------------
    1. Memory allocation and pointer shortcuts 
@@ -125,13 +193,17 @@ void PrimSource (const State_1D *state, int beg, int end,
    x2 = grid[JDIR].x; x2p = grid[JDIR].xr; dx2 = grid[JDIR].dx;
    x3 = grid[KDIR].x; x3p = grid[KDIR].xr; dx3 = grid[KDIR].dx;
   #endif
+  
+  #ifdef GLM_MHD
+   ch2 = glm_ch*glm_ch;
+  #endif
 
   A  = grid[g_dir].A;
   dV = grid[g_dir].dV;
   hscale  = 1.0;
 
   i = g_i; j = g_j; k = g_k;
-
+  
 /* ----------------------------------------------------------
      initialize all elements of src to zero
    ---------------------------------------------------------- */
@@ -147,16 +219,22 @@ void PrimSource (const State_1D *state, int beg, int end,
   if (g_dir == IDIR) {
     for (i = beg; i <= end; i++){
       v = state->v[i]; 
+
       tau   = 1.0/v[RHO];
       dA_dV = 1.0/x1[i];
 
       src[i][RHO] = -v[RHO]*v[VXn]*dA_dV;
-      #if COMPONENTS == 3
-       src[i][iVR]   =  v[iVPHI]*v[iVPHI]*dA_dV; 
-       src[i][iVPHI] = -v[iVR]*v[iVPHI]*dA_dV;
-      #endif
+      EXPAND(                                                                  ,
+             src[i][iBZ]   = (v[iBR]*v[iVZ] - v[iVR]*v[iBZ])*dA_dV;            ,
+             src[i][iVR]   = (v[iVPHI]*v[iVPHI] - v[iBPHI]*v[iBPHI]*tau)*dA_dV; 
+             src[i][iVPHI] = (-v[iVR]*v[iVPHI] + v[iBR]*v[iBPHI]*tau)*dA_dV;)
+   
       #if EOS == IDEAL
        src[i][PRS] = a2[i]*src[i][RHO];
+      #endif
+
+      #ifdef GLM_MHD
+       src[i][PSI_GLM] = -v[iBR]*dA_dV*ch2;
       #endif
     }
   }
@@ -171,27 +249,18 @@ void PrimSource (const State_1D *state, int beg, int end,
       dA_dV = 1.0/x1[i];
       src[i][RHO]  = -v[RHO]*v[VXn]*dA_dV;
 
-      #if COMPONENTS >= 2
-       src[i][iVR] = v[iVPHI]*v[iVPHI]*dA_dV;  
-      #endif
-
-  /* -- in 1D, all sources should be included during this sweep -- */
-
-      #if DIMENSIONS == 1 && COMPONENTS >= 2
-       src[i][iVPHI] = -v[iVR]*v[iVPHI]*dA_dV; 
-      #endif
+      EXPAND(                                                                ,
+         src[i][iVR]   = (v[iVPHI]*v[iVPHI] - v[iBPHI]*v[iBPHI]*tau)*dA_dV;  
+         src[i][iVPHI] = (-v[iVR]*v[iVPHI]  + v[iBR]*v[iBPHI]*tau)*dA_dV;    ,
+         src[i][iBZ]   = ( v[iBR]*v[iVZ]    - v[iVR]*v[iBZ])*dA_dV;)
 
       #if EOS == IDEAL
        src[i][PRS] = a2[i]*src[i][RHO];
       #endif
-    }
-  } else if (g_dir == JDIR) {
-    dA_dV = 1.0/x1[i];
-    hscale = x1[i];
-    for (j = beg; j <= end; j++){
-      v   = state->v[j]; 
-      tau = 1.0/v[RHO];
-      src[j][iVPHI] = -v[iVR]*v[iVPHI]*dA_dV;
+      #ifdef GLM_MHD
+       src[i][PSI_GLM] = -v[iBR]*dA_dV*ch2;
+      #endif
+
     }
   }
 
@@ -225,121 +294,140 @@ void PrimSource (const State_1D *state, int beg, int end,
   }
 
 #endif
+  
 
-  #if (BODY_FORCE != NO)
-   if (g_dir == IDIR) {
-     i = beg-1;
-     #if BODY_FORCE & POTENTIAL
-      phi_p[i] = BodyForcePotential(x1p[i], x2[j], x3[k]);
-     #endif
-     for (i = beg; i <= end; i++){
-       #if BODY_FORCE & VECTOR
+#if (BODY_FORCE != NO)
+  if (g_dir == IDIR) {
 
-#if CAK == YES
-        /* 
-        modification made to the BodyForceVector function to allow 
-        CAK calculation with conservation of energy.
-        */ 
-        double v1, v3;
-        double **vp = state->vp;
-        v1 = vp[i-1][VX1];
-        v3 = vp[i+1][VX1];
-        BodyForceVector(v1, v, v3, g, x1[i-1], x1[i], x1[i+1], x2[j], x3[k]);
-#endif
-#if CAK == NO
-        v = state->v[i];
-        BodyForceVector(v, g, x1[i], x2[j], x3[k]);
-#endif
-        //printf("g=%f \n",g[IDIR]);
-        src[i][VX1] += g[IDIR];
-       #endif
-       #if BODY_FORCE & POTENTIAL
-        phi_p[i]     = BodyForcePotential(x1p[i], x2[j], x3[k]); 
-        src[i][VX1] -= (phi_p[i] - phi_p[i-1])/(hscale*dx1[i]);
-       #endif
+    i = beg-1;
+    j = g_j;
+    k = g_k;
+  #if BODY_FORCE & POTENTIAL
+    phi_p[i] = BodyForcePotential(x1p[i], x2[j], x3[k]);
+  #endif
+    for (i = beg; i <= end; i++){
+    #if BODY_FORCE & VECTOR
+      v = state->v[i];
+    #if CAK == YES
+      gla = state->gl[i];
+      BodyForceVector(v, gla, g, x1[i], x2[j], x3[k]);
+    #else
+      BodyForceVector(v, g, x1[i], x2[j], x3[k]);
+    #endif
+      src[i][VX1] += g[IDIR];
+    #endif
+    #if BODY_FORCE & POTENTIAL
+      phi_p[i]     = BodyForcePotential(x1p[i], x2[j], x3[k]); 
+      src[i][VX1] -= (phi_p[i] - phi_p[i-1])/(hscale*dx1[i]);
+    #endif
 
     /* -- Add tangential components in 1D -- */
     
-       #if DIMENSIONS == 1
-        EXPAND(                         , 
-               src[i][VX2] += g[JDIR];  ,
-               src[i][VX3] += g[KDIR];)
-       #endif
-     }
-   }else if (g_dir == JDIR){
-     j = beg - 1;
-     #if BODY_FORCE & POTENTIAL
-      phi_p[j] = BodyForcePotential(x1[i], x2p[j], x3[k]);
-     #endif
-     #if GEOMETRY == POLAR || GEOMETRY == SPHERICAL
-      hscale = x1[i];
-     #endif
-     for (j = beg; j <= end; j++){
-       #if BODY_FORCE & VECTOR
+    #if DIMENSIONS == 1
+      EXPAND(                         , 
+             src[i][VX2] += g[JDIR];  ,
+             src[i][VX3] += g[KDIR];)
+    #endif
+    }
 
-#if CAK == YES
-        /* 
-        modification made to the BodyForceVector function to allow 
-        CAK calculation with conservation of energy.
-        */ 
-        double v1, v3;
-        double **vp = state->vp;
-        v1 = vp[i-1][VX1];
-        v3 = vp[i+1][VX1];
-        BodyForceVector(v1, v, v3, g, x1[i-1], x1[i], x1[i+1], x2[j], x3[k]);
-#endif
-#if CAK == NO
-        v = state->v[j];
-        BodyForceVector(v, g, x1[i], x2[j], x3[k]);
-#endif
+  }else if (g_dir == JDIR){
 
-        src[j][VX2] += g[JDIR];
-       #endif
-       #if BODY_FORCE & POTENTIAL
-        phi_p[j]     = BodyForcePotential(x1[i], x2p[j], x3[k]);
-        src[j][VX2] -= (phi_p[j] - phi_p[j-1])/(hscale*dx2[j]);
-       #endif
+    i = g_i;
+    j = beg - 1;
+    k = g_k;
+  #if BODY_FORCE & POTENTIAL
+    phi_p[j] = BodyForcePotential(x1[i], x2p[j], x3[k]);
+  #endif
+  #if GEOMETRY == POLAR || GEOMETRY == SPHERICAL
+    hscale = x1[i];
+  #endif
+    for (j = beg; j <= end; j++){
+    #if BODY_FORCE & VECTOR
+      v = state->v[j];
+    #if CAK == YES
+      gla = state->gl[j];
+      BodyForceVector(v, gla, g, x1[i], x2[j], x3[k]);
+    #else
+      BodyForceVector(v, g, x1[i], x2[j], x3[k]);
+    #endif
+      src[j][VX2] += g[JDIR];
+    #endif
+    #if BODY_FORCE & POTENTIAL
+      phi_p[j]     = BodyForcePotential(x1[i], x2p[j], x3[k]);
+      src[j][VX2] -= (phi_p[j] - phi_p[j-1])/(hscale*dx2[j]);
+    #endif
 
     /* -- Add 3rd component in 2D -- */
 
-       #if DIMENSIONS == 2 && COMPONENTS == 3
-        src[j][VX3] += g[KDIR];
-       #endif
-     }
-   }else if (g_dir == KDIR){
-     k = beg - 1;
-     #if BODY_FORCE & POTENTIAL
-      phi_p[k] = BodyForcePotential(x1[i], x2[j], x3p[k]);
-     #endif
-     #if GEOMETRY == SPHERICAL
-      th     = x2[j];
-      hscale = x1[i]*sin(th);
-     #endif
-     for (k = beg; k <= end; k++){
-       #if BODY_FORCE & VECTOR
+    #if DIMENSIONS == 2 && COMPONENTS == 3
+      src[j][VX3] += g[KDIR];
+    #endif
+    }
 
-#if CAK == YES
-        /* 
-        modification made to the BodyForceVector function to allow 
-        CAK calculation with conservation of energy.
-        */ 
-        double v1, v3;
-        double **vp = state->vp;
-        v1 = vp[i-1][VX1];
-        v3 = vp[i+1][VX1];
-        BodyForceVector(v1, v, v3, g, x1[i-1], x1[i], x1[i+1], x2[j], x3[k]);
+  }else if (g_dir == KDIR){
+
+    i = g_i;
+    j = g_j;
+    k = beg - 1;
+  #if BODY_FORCE & POTENTIAL
+    phi_p[k] = BodyForcePotential(x1[i], x2[j], x3p[k]);
+  #endif
+  #if GEOMETRY == SPHERICAL
+    th     = x2[j];
+    hscale = x1[i]*sin(th);
+  #endif
+    for (k = beg; k <= end; k++){
+    #if BODY_FORCE & VECTOR
+      v = state->v[k];
+    #if CAK == YES
+      gla = state->gl[k];
+      BodyForceVector(v, gla, g, x1[i], x2[j], x3[k]);
+    #else
+      BodyForceVector(v, g, x1[i], x2[j], x3[k]);
+    #endif
+      src[k][VX3] += g[KDIR];
+    #endif
+    #if BODY_FORCE & POTENTIAL
+      phi_p[k]     = BodyForcePotential(x1[i], x2[j], x3p[k]); 
+      src[k][VX3] -= (phi_p[k] - phi_p[k-1])/(hscale*dx3[k]);
+    #endif
+    }
+  }
 #endif
-#if CAK == NO
-        v = state->v[k];
-        BodyForceVector(v, g, x1[i], x2[j], x3[k]);
-#endif
-        src[k][VX3] += g[KDIR];
-       #endif
-       #if BODY_FORCE & POTENTIAL
-        phi_p[k]     = BodyForcePotential(x1[i], x2[j], x3p[k]); 
-        src[k][VX3] -= (phi_p[k] - phi_p[k-1])/(hscale*dx3[k]);
-       #endif
-     }
+
+/* -----------------------------------------------------------
+   4. MHD, div.B related source terms
+   ----------------------------------------------------------- */
+
+  #ifdef GLM_MHD
+   #if GEOMETRY == POLAR || GEOMETRY == SPHERICAL
+    print1 ("! Error: Div. Cleaning does not work in this configuration.\n");
+    print1 ("!        Try RK integrator instead\n");
+    QUIT_PLUTO(1);
+   #endif
+   for (i = beg; i <= end; i++){
+     v = state->v[i];
+
+     tau = 1.0/v[RHO]; 
+     db  = 0.5*(  A[i]  *(state->v[i+1][BXn] + state->v[i][BXn]) 
+                - A[i-1]*(state->v[i-1][BXn] + state->v[i][BXn]))/dV[i];
+     #if GLM_EXTENDED == NO
+      EXPAND(src[i][VXn] += v[BXn]*tau*db;  ,
+             src[i][VXt] += v[BXt]*tau*db;  ,
+             src[i][VXb] += v[BXb]*tau*db;)
+     #endif
+     EXPAND(                        ,
+            src[i][BXt] += v[VXt]*db; ,
+            src[i][BXb] += v[VXb]*db;)
+     
+     #if EOS == IDEAL
+      scrh = EXPAND(v[VXn]*v[BXn], + v[VXt]*v[BXt], + v[VXb]*v[BXb]);
+      src[i][PRS] += (1.0 - g_gamma)*scrh*db;
+      #if GLM_EXTENDED == NO
+       scrh = 0.5*(state->v[i+1][PSI_GLM] - state->v[i-1][PSI_GLM])/grid[g_dir].dx[i];
+       src[i][PRS] += (g_gamma - 1.0)*v[BXn]*scrh;
+      #endif        
+     #endif
    }
   #endif
 
@@ -349,7 +437,7 @@ void PrimSource (const State_1D *state, int beg, int end,
       these source terms since they're all provided by body_force)
    --------------------------------------------------------------- */
   
-  #if (defined FARGO) && !(defined SHEARINGBOX)
+  #if (defined FARGO && !defined SHEARINGBOX)
    #if GEOMETRY == POLAR || GEOMETRY == SPHERICAL
     print1 ("! Time Stepping works only in Cartesian or cylindrical coords\n");
     print1 ("! Use RK instead\n");
@@ -359,12 +447,14 @@ void PrimSource (const State_1D *state, int beg, int end,
    double **wA, *dx, *dz;
    wA = FARGO_GetVelocity();
    if (g_dir == IDIR){
+     k  = g_k;
      dx = grid[IDIR].dx;
      for (i = beg; i <= end; i++){
        v = state->v[i];
        src[i][VX2] -= 0.5*v[VX1]*(wA[k][i+1] - wA[k][i-1])/dx[i];
      }
    }else if (g_dir == KDIR){
+     i  = g_i;
      dz = grid[KDIR].dx;
      for (k = beg; k <= end; k++){
        v = state->v[k];

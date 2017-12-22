@@ -6,8 +6,8 @@
 
 pluto:                              # Default target
 
-ARCH         = Darwin.gcc.defs
-PLUTO_DIR    = /Users/simon/Work/Programs/PLUTO
+ARCH         = Linux.mpicc.defs
+PLUTO_DIR    = /home-link/pecke01/BWgrid/PLUTO/Liege_CAK/Pluto/
 SRC          = $(PLUTO_DIR)/Src
 INCLUDE_DIRS = -I. -I$(SRC)
 VPATH        = ./:$(SRC)/New:$(SRC):$(SRC)/Time_Stepping:$(SRC)/States
@@ -72,13 +72,15 @@ HEADERS += ppm_coeffs.h
 
 OBJ += ppm_states.o
 OBJ += ppm_coeffs.o
+OBJ += cooling_source.o
+OBJ += cooling_ode_solver.o
 OBJ += vec_pot_diff.o
 OBJ += vec_pot_update.o
 OBJ += rk_step.o
 OBJ += update_stage.o
 include $(SRC)/MHD/makefile
-include $(SRC)/MHD/GLM/makefile
-include $(SRC)/Cooling/Power_Law/makefile
+include $(SRC)/MHD/CT/makefile
+include $(SRC)/Cooling/TABULATED/makefile
 include $(SRC)/EOS/Ideal/makefile
 
 # ---------------------------------------------------------

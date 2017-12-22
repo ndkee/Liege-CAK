@@ -1,5 +1,5 @@
 #define  PHYSICS                 MHD
-#define  DIMENSIONS              3
+#define  DIMENSIONS              2
 #define  COMPONENTS              3
 #define  GEOMETRY                SPHERICAL
 #define  BODY_FORCE              VECTOR
@@ -8,7 +8,7 @@
 #define  TIME_STEPPING           RK3
 #define  DIMENSIONAL_SPLITTING   NO
 #define  NTRACER                 0
-#define  USER_DEF_PARAMETERS     21
+#define  USER_DEF_PARAMETERS     17
 
 /* -- physics dependent declarations -- */
 
@@ -23,28 +23,23 @@
 
 /* -- user-defined parameters (labels) -- */
 
-#define Eta                   0 
-#define M_star                1 
-#define R_star                2 
-#define L_star                3 
-#define T_star                4
-#define CAK_alpha             5
-#define CAK_delta             6
-#define CAK_ifrc              7
-#define CAK3D_nyy             8
-#define CAK3D_npp             9
-#define Q_factor              10
-#define Velocity_exponent     11
-#define Rotation              12
-#define Mean_mol_weight       13
-#define Magnetic_incl         14
-#define Cs_p                  15
-#define R_max                 16
-#define D_separation          17
-#define R_secondary           18
-#define Vinf_secondary        19
-#define Mdot_secondary_ratio  20
-
+#define  Eta                     0
+#define  M_star                  1
+#define  R_star                  2
+#define  L_star                  3
+#define  T_star                  4
+#define  CAK_alpha               5
+#define  Q_factor                6
+#define  Velocity_exponent       7
+#define  Rotation                8
+#define  Mean_mol_weight         9
+#define  Magnetic_incl           10
+#define  Cs_p                    11
+#define  R_max                   12
+#define  D_separation            13
+#define  R_secondary             14
+#define  Vinf_secondary          15
+#define  Mdot_secondary_ratio    16
 
 /* [Beg] user-defined constants (do not change this line) */
 

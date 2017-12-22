@@ -101,6 +101,9 @@ void RightHandSideSource (const State_1D *state, Time_Step *Dts,
   double **Bg0, **wA, w, wp, vphi, phi_c;
   double vphi_d, Sm_d;
   double vc[NVAR], *vg;
+#if CAK == YES
+  double *gla;
+#endif
 
 #ifdef FARGO
   wA = FARGO_GetVelocity();
@@ -220,25 +223,15 @@ void RightHandSideSource (const State_1D *state, Time_Step *Dts,
        ---------------------------------------------------- */
 
 #if (BODY_FORCE & VECTOR)
-
 #if CAK == YES
-      /* 
-      modification made to the BodyForceVector function to allow 
-      CAK calculation with conservation of energy.
-      */ 
-      double v1, v3;
-      v1 = vp[i-1][VX1];
-      v3 = vp[i+1][VX1];
-      BodyForceVector(v1, vg, v3, g, x1[i-1], x1[i], x1[i+1], x2[j], x3[k]);
-#endif
-
-#if CAK == NO
+      gla = state->gl[i];
+      BodyForceVector(vg, gla, g, x1[i], x2[j], x3[k]);
+#else
       BodyForceVector(vg, g, x1[i], x2[j], x3[k]);
 #endif
       rhs[i][MX1]   += dt*vg[RHO]*g[IDIR];
       IF_DUST  (rhs[i][MX1_D] += dt*vg[RHO_D]*g[IDIR];)
       IF_ENERGY(rhs[i][ENG] += dt*0.5*(flux[i][RHO] + flux[i-1][RHO])*g[IDIR];) 
-
 #endif
       
 #if (BODY_FORCE & POTENTIAL)
@@ -323,24 +316,15 @@ void RightHandSideSource (const State_1D *state, Time_Step *Dts,
        ---------------------------------------------------- */
 
 #if (BODY_FORCE & VECTOR)
-
 #if CAK == YES
-      /* 
-      modification made to the BodyForceVector function to allow 
-      CAK calculation with conservation of energy.
-      */ 
-      double v1, v3;
-      v1 = vp[i-1][VX1];
-      v3 = vp[i+1][VX1];
-      BodyForceVector(v1, vg, v3, g, x1[i-1], x1[i], x1[i+1], x2[j], x3[k]);
-#endif
-#if CAK == NO
+      gla = state->gl[j];
+      BodyForceVector(vg, gla, g, x1[i], x2[j], x3[k]);
+#else
       BodyForceVector(vg, g, x1[i], x2[j], x3[k]);
 #endif
       rhs[j][MX2]   += dt*vg[RHO]*g[JDIR];
       IF_DUST  (rhs[j][MX2_D] += dt*vg[RHO_D]*g[JDIR];)
       IF_ENERGY(rhs[j][ENG] += dt*0.5*(flux[j][RHO] + flux[j-1][RHO])*g[JDIR];)
-
 #endif
 
 #if (BODY_FORCE & POTENTIAL)
@@ -383,24 +367,15 @@ void RightHandSideSource (const State_1D *state, Time_Step *Dts,
        ---------------------------------------------------- */
 
 #if (BODY_FORCE & VECTOR)
-
 #if CAK == YES
-      /* 
-      modification made to the BodyForceVector function to allow 
-      CAK calculation with conservation of energy.
-      */ 
-      double v1, v3;
-      v1 = vp[i-1][VX1];
-      v3 = vp[i+1][VX1];
-      BodyForceVector(v1, vg, v3, g, x1[i-1], x1[i], x1[i+1], x2[j], x3[k]);
-#endif
-#if CAK == NO
+      gla = state->gl[k];
+      BodyForceVector(vg, gla, g, x1[i], x2[j], x3[k]);
+#else
       BodyForceVector(vg, g, x1[i], x2[j], x3[k]);
 #endif
       rhs[k][MX3]   += dt*vg[RHO]*g[KDIR];
       IF_DUST(rhs[k][MX3_D] += dt*vg[RHO_D]*g[KDIR];)
       IF_ENERGY(rhs[k][ENG] += dt*0.5*(flux[k][RHO] + flux[k-1][RHO])*g[KDIR];)
-
 #endif
 
 #if (BODY_FORCE & POTENTIAL)
