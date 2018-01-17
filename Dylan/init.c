@@ -460,6 +460,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         #endif
       }
 
+    #if PHYSICS == MHD
     #ifdef STAGGERED_MHD
     }else if(box->vpos == X2FACE){  
       BOX_LOOP(box,k,j,i){
@@ -490,6 +491,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         #endif
       }
     #endif // staggered
+    #endif // MHD
     } // outside #ifdef STAGGERED_MHD to close first if
 
   }
@@ -582,6 +584,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         #endif
         }
       }
+    #if PHYSICS == MHD
     #ifdef STAGGERED_MHD
     }else if(box->vpos == X2FACE){
       BOX_LOOP(box,k,j,i){
@@ -606,6 +609,7 @@ void UserDefBoundary (const Data *d, RBox *box, int side, Grid *grid)
         #endif
       }
     #endif // staggered
+    #endif // MHD
     } // outside #ifdef STAGGERED_MHD to close first if
 
   } // end X1END
