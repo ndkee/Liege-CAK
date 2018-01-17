@@ -1085,7 +1085,7 @@ void gcak3d(const Data *data, Grid *grid, Star star, int kl, int jl, int il, dou
         rsbr     = star.radius / r;
         xmustar  = sqrt(MAX(0.0, 1.0 - rsbr*rsbr));
         dilfac   = 0.5 * (1.0 - xmustar);
-        delfac   = pow(data->Vc[RHO][kl][jl][il] / dilfac / (1.e11 / (UNIT_MASS*pow(UNIT_LENGTH,-3)) * UNIT_MASS) / xmbe, delta);
+        delfac   = pow(data->Vc[RHO][kl][jl][il] / dilfac / (1.e11 * pow(UNIT_LENGTH,3)) / xmbe, delta);
         tmp      = tmp * delfac;
     }
       
@@ -1106,7 +1106,7 @@ void gcak3d(const Data *data, Grid *grid, Star star, int kl, int jl, int il, dou
 void sobolev(const Data *data, Grid *grid, Star star, int kl, int jl, int il, double *gline){
     
     int    ip, im, imax;
-    double dr, dvrdr, tmp, r;
+    double dr, drp, drm, dvrdr, tmp, r;
     double q0, qbar, aCAK, delta, oma, opa;
     double tq0, beta_op, fdfac, dilfac, delfac;
     double rsbr, xmustar;
@@ -1123,9 +1123,13 @@ void sobolev(const Data *data, Grid *grid, Star star, int kl, int jl, int il, do
     
     ip     = MIN(il+1,imax-1);
     im     = MAX(il-1,0);
-    dr     = xi[ip]-xi[im];
-    dvrdr  = (data->Vc[VX1][kl][jl][ip]-data->Vc[VX1][kl][jl][im])/dr;
-    
+//    dr     = xi[ip]-xi[im];
+//    dvrdr  = (data->Vc[VX1][kl][jl][ip]-data->Vc[VX1][kl][jl][im])/dr;
+
+    drp    =  xi[ip]-xi[il];
+    drm    =  xi[il]-xi[im];
+    dvrdr  = -drp/(drm * (drp + drm)) * data->Vc[VX1][kl][jl][im] + (drp - drm)/(drp * drm) * data->Vc[VX1][kl][jl][il] + drm/(drp * (drp + drm)) * data->Vc[VX1][kl][jl][ip];  
+  
     aCAK   = g_inputParam[CAK_alpha];
     delta  = g_inputParam[CAK_delta];
     qbar   = g_inputParam[Q_factor];
@@ -1147,7 +1151,7 @@ void sobolev(const Data *data, Grid *grid, Star star, int kl, int jl, int il, do
     }
     
     if (dvrdr != 0.0){
-        beta_op = (1.-data->Vc[VX1][kl][jl][il]/(dvrdr*r)) * pow(star.radius/r,2);
+        beta_op = (1.-data->Vc[VX1][kl][jl][il]/(fabs(dvrdr)*r)) * pow(star.radius/r,2);
         if (beta_op >= 1.){
             fdfac = 1./opa;
         }else if(beta_op < -1.e10){

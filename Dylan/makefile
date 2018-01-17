@@ -7,7 +7,7 @@
 pluto:                              # Default target
 
 ARCH         = Linux.mpicc.defs
-PLUTO_DIR    = /home-link/pecke01/BWgrid/PLUTO/Liege_CAK/Pluto/
+PLUTO_DIR    = /home-link/pecke01/BWgrid/PLUTO/Liege_CAK/Pluto
 SRC          = $(PLUTO_DIR)/Src
 INCLUDE_DIRS = -I. -I$(SRC)
 VPATH        = ./:$(SRC)/New:$(SRC):$(SRC)/Time_Stepping:$(SRC)/States
@@ -64,24 +64,16 @@ endif
 #   Additional_header_files_here   ! dont change this line
 # ---------------------------------------------------------
 
-HEADERS += ppm_coeffs.h
 
 # ---------------------------------------------------------
 #   Additional_object_files_here   ! dont change this line
 # ---------------------------------------------------------
 
-OBJ += ppm_states.o
-OBJ += ppm_coeffs.o
-OBJ += cooling_source.o
-OBJ += cooling_ode_solver.o
-OBJ += vec_pot_diff.o
-OBJ += vec_pot_update.o
+OBJ += weno3_states.o
 OBJ += rk_step.o
 OBJ += update_stage.o
-include $(SRC)/MHD/makefile
-include $(SRC)/MHD/CT/makefile
-include $(SRC)/Cooling/TABULATED/makefile
-include $(SRC)/EOS/Ideal/makefile
+include $(SRC)/HD/makefile
+include $(SRC)/EOS/Isothermal/makefile
 
 # ---------------------------------------------------------
 #    PLUTO target rule
